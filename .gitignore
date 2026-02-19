@@ -1,0 +1,273 @@
+# =============================================================================
+# .gitignore - Configuration Git pour Projet Python ML/Data Science
+# =============================================================================
+# Ce fichier définit les patterns de fichiers et répertoires à exclure du 
+# versioning Git. Principe fondamental: ne jamais versionner de fichiers 
+# binaires, secrets, ou générés automatiquement.
+# =============================================================================
+
+# =============================================================================
+# ENVIRONNEMENT PYTHON
+# =============================================================================
+# Fichiers compilés Python et cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environnements virtuels
+.venv/
+venv/
+env/
+ENV/
+.Python
+.python-version
+
+.ipynb_checkpoints/
+
+# Cache de tests et type checking
+.pytest_cache/
+.mypy_cache/
+.tox/
+.cache
+
+# =============================================================================
+# DISTRIBUTION & PACKAGING
+# =============================================================================
+# Répertoires de build et distribution
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+
+# Métadonnées de packages
+*.egg-info/
+.installed.cfg
+*.egg
+*.manifest
+*.spec
+
+# Logs d'installation
+pip-log.txt
+pip-delete-this-directory.txt
+
+# =============================================================================
+# JUPYTER NOTEBOOK & ANALYSE INTERACTIVE
+# =============================================================================
+# Checkpoints Jupyter
+.ipynb_checkpoints/
+
+# Notebooks (décommenter si non souhaité en versioning)
+# *.ipynb
+
+# =============================================================================
+# TESTS & COUVERTURE DE CODE
+# =============================================================================
+# Rapports de tests
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+nosetests.xml
+coverage*
+mlartifacts*
+
+# Répertoire de rapports générés
+reports/model_performance/
+reports/test_coverage/
+reports/monitoring/
+!reports/**/.gitkeep
+
+# =============================================================================
+# DONNÉES & DATASETS
+# =============================================================================
+# Principe: Les données ne doivent JAMAIS être versionnées
+# Utiliser DVC, S3, ou autre solution de data versioning
+data/**/*
+!data/**/.gitkeep
+
+# =============================================================================
+# MODÈLES ML & ARTEFACTS
+# =============================================================================
+# Modèles entraînés (fichiers lourds et binaires)
+models/*.pkl
+models/*.h5
+models/*.pt
+#models/*.joblib
+*.pkl
+*.h5
+*.pt
+*.onnx
+*.tflite
+
+# Checkpoints et sauvegardes
+checkpoints/
+*.ckpt
+*.pth
+
+# =============================================================================
+# MLOPS & TRACKING EXPÉRIENCES
+# =============================================================================
+# MLflow
+mlruns/
+mlflow/
+mlflow.db
+artifacts/
+
+# BentoML
+bentoml/bentos/
+bentos/
+.bento/
+
+# Evidently AI (monitoring)
+evidently_reports/
+
+# Weights & Biases
+wandb/
+
+# =============================================================================
+# BASES DE DONNÉES
+# =============================================================================
+# Fichiers de base de données locales
+*.db
+*.sqlite
+*.sqlite3
+*.sql.backup
+*.rdb
+
+# =============================================================================
+# SECRETS & CREDENTIALS
+# =============================================================================
+# CRITIQUE: Ne JAMAIS versionner de secrets ou credentials
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.p12
+credentials.json
+secrets.yaml
+.secrets/
+
+# Tokens et configurations sensibles
+*.token
+.aws/
+.gcp/
+
+# =============================================================================
+# DOCUMENTATION GÉNÉRÉE
+# =============================================================================
+# Sphinx
+docs/_build/
+docs/_static/
+docs/_templates/
+
+# MkDocs
+site/
+
+# =============================================================================
+# ENVIRONNEMENTS DE DÉVELOPPEMENT (IDE)
+# =============================================================================
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# PyCharm / IntelliJ
+.idea/
+*.iml
+
+# Spyder
+.spyproject/
+
+# =============================================================================
+# ÉDITEURS DE TEXTE
+# =============================================================================
+# Vim
+*.swp
+*.swo
+*~
+.*.sw?
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# =============================================================================
+# SYSTÈME D'EXPLOITATION
+# =============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.directory
+.Trash-*
+
+# =============================================================================
+# LOGS & FICHIERS TEMPORAIRES
+# =============================================================================
+*.log
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# =============================================================================
+# DIVERS
+# =============================================================================
+# Fichiers de lock spécifiques (décommenter si nécessaire)
+# poetry.lock
+# Pipfile.lock
+
+# Fichiers de configuration locale
+local_settings.py
+instance/
+.webassets-cache
+
+# Target directory (PyBuilder)
+target/
+
+# Translations
+*.mo
+
+reports/*.html
+
+
+
+

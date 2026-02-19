@@ -1,0 +1,119 @@
+# Instructions pour l'assistant (Cursor / AI)
+
+Ce fichier contient les conventions et indications du projet. Tu peux le modifier pour ajouter ou changer des consignes.
+
+---
+
+## Langue et style de code
+
+- **Commentaires et docstrings** : en **français**.
+- **Noms de fonctions et de variables** : en **anglais**.
+- **Messages utilisateur** (prints, logs, erreurs) : en **français**.
+
+
+vamos a indentar el codigo 
+se traduce o corrige al frances lo mentarios 
+procurar no pasar de 80 caracteres
+se anadiran comentarios de modo que sena claros, precisos
+y didacticos
+Ajoutez des commentaires détaillés pour faciliter la maintenance du code.
+Assurez-vous de bien respecter les bonnes pratiques de rédaction de code. 
+
+
+los import, from quedan todas alineadas 
+se agrupan por grupos de coherencia segun su utiulizacion precedidos 
+de una linea de comentario con la descricion y finalidad del grupoo
+tienen al final de cada linea  un breve comentario con una descripcion
+Primero los import 
+import os
+import requests
+import matplotlib.pyplot as plt
+import numpy as np
+
+luego los from (con el import alineado en la coluna) 
+from   PIL           import Image
+from   tqdm.notebook import tqdm
+
+las funciones van predecidas ppor comentarios de tipo 
+# ######################... hasta hacer 80 caracteres
+
+las funciones largas si itenes parte coherentes pueden
+quedar divididas por comentarios de tipo 
+# ------------------... hasta hacer 80 caracteres
+
+Si hay lineas seguidas de asignaciones 
+los = se alinean a la misma colunna 
+Si hay lineas seguidas de specificaciones
+los : se alinean a la misma colunna   
+
+si hay linea seguidas con asignaciones que requieren de una explicacion 
+en ese caso la linea puede ocupar mas de 80 caracteres poniendo los
+comentarios alineado los # en la misma colunna 
+EJEMPLO .. ESTO .. 
+# Images à traiter par heure
+imgs_per_hour = TARGET / DAYS / 24
+# Vitesse de traitement par GPU (images/heure)
+processing_speed = 250
+# Nombre de GPUs nécessaires (arrondi à l'entier supérieur)
+num_gpus      = np.ceil(imgs_per_hour / processing_speed)
+
+SERIA  
+
+imgs_per_hour    = TARGET / DAYS / 24         # Images à traiter par heure
+processing_speed = 250                        # Vitesse de traitement par GPU (images/heure)
+num_gpus         = np.ceil(imgs_per_hour /
+                            processing_speed) # Nombre de GPUs nécessaires (arrondi à l'entier supérieur)
+
+
+cuando hay lineas de print con presentacion de valores
+los : se alinean en la misma coluna y despues de las etiquetas 
+se anaden puntos ..... hasa encontrarse con los dos puntos, ej
+print(f"  Masque shape........: {mask_shape}")
+print(f"  ID objet mémoire....: {id(result['combined_mask'])}")
+print(f"  Classes uniques.....: {list(unique_classes[:15])}")
+
+
+
+en lugar de hacer :
+# ============================================================================
+# VÉRIFICATION POST-IMPUTATION CATÉGORIELLE
+# ============================================================================
+
+print("\n" + "="*80)
+print("VÉRIFICATION POST-IMPUTATION CATÉGORIELLE")
+print("="*80)
+
+haz mas bien:
+print("\n============================================================================")
+print("RAPPORT DE L'ÉTAPE 2")
+print("============================================================================")
+
+ahorramos los comentarios y a la vez sirve de guia visual para leer el codigo
+comentariosn, nombres de constantes y variables etc .. tambien todo en frances 
+
+---
+
+## Tests
+
+- **Exécution** : `uv run python -m pytest -v` (ou avec options : `-m unit`, `-m "not integration"`, `--cov=src.xxx`).
+- Structure des fichiers de test : en-tête avec niveau (UNIT/INTEGRATION), couche, architecture.
+- Markers pytest : `@pytest.mark.unit`, `@pytest.mark.fast`, `@pytest.mark.integration`.
+- Blocs ARRANGE / ACT / ASSERT dans les tests.
+- Docstrings des tests en français.
+- Nommage des tests : `test_01_...`, `test_02_...`, etc.
+
+---
+
+## Base de données (src/database.py)
+
+- Variables d'environnement : `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`.
+- Ne pas dépendre de noms en espagnol (ex. DB_USER) dans le code.
+
+---
+
+## Ajoute tes propres indications ci-dessous
+
+- [ ] Conventions de nommage des branches Git
+- [ ] Préférences d'API (FastAPI, schémas Pydantic)
+- [ ] Emplacement des modèles ML, artefacts, configs
+- [ ] Autres règles métier ou techniques
