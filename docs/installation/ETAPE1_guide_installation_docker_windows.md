@@ -281,7 +281,7 @@ C'est l'étape principale — un seul fichier `docker-compose.yml` lance tout.
 cd C:\Projets\credit-scoring-mlops
 
 # Lancer PostgreSQL et MLflow en arrière-plan
-docker compose up -d postgres mlflow
+docker compose up -d postgres mlflow pgadmin
 
 docker compose up -d pgadmin
 
@@ -327,6 +327,29 @@ docker compose ps
 # credit_scoring_mlflow      Up (healthy)    0.0.0.0:5000->5000/tcp
 # credit_scoring_postgres    Up (healthy)    0.0.0.0:5432->5432/tcp
 ```
+
+
+### Étape 7.4 — Création de l'utilisateur 'credit_user'
+
+# 1. Création de l'utilisateur 'credit_user'
+docker exec -it postgres_db psql -U postgres -c "CREATE USER credit_user WITH PASSWORD 'admin';"
+
+# 2. Création de la base de données 'credit_scoring' appartenant à cet utilisateur
+docker exec -it postgres_db psql -U postgres -c "CREATE DATABASE credit_scoring OWNER credit_user;"
+
+# 3. Octroi des droits à 'mlflow_user' (si tu veux qu'il puisse lire les données)
+docker exec -it postgres_db psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE credit_scoring TO mlflow_user;"
+
+
+# 1. Création de l'utilisateur 'credit_user' (via mlflow_user)
+docker exec -it postgres_db psql -U mlflow_user -d mlflow_db -c "CREATE USER credit_user WITH PASSWORD 'admin';"
+
+# 2. Création de la base 'credit_scoring'
+docker exec -it postgres_db psql -U mlflow_user -d mlflow_db -c "CREATE DATABASE credit_scoring OWNER credit_user;"
+
+# 3. Attribution des droits (pour que mlflow_user puisse aussi y accéder)
+docker exec -it postgres_db psql -U mlflow_user -d mlflow_db -c "GRANT ALL PRIVILEGES ON DATABASE credit_scoring TO mlflow_user;"
+
 
 ---
 
@@ -638,3 +661,136 @@ Après avoir suivi ce guide, vous disposez de :
 ---
 
 *Guide Étape 1 — Credit Scoring MLOps · Prêt à Dépenser*
+
+
+
+```
+----------------------------------------------------------------------------
+DÉBUT DE L'INGESTION DES DONNÉES (CSV -> SQL)
+----------------------------------------------------------------------------
+  Traitement de..........: application_train.csv
+     ↳ Mapping technique appliqué via Registry
+     📍 Destination.........: PostgreSQL (credit_scoring)
+     📊 Volume..............: 307,511 lignes · 122 colonnes
+     ⏱️  Performance.........: 269.06s (1,142 l/s)
+  Statut table raw_application_train..: Renommé & Chargé ✅
+  Traitement de..........: application_test.csv
+     ↳ Mapping technique appliqué via Registry
+     📍 Destination.........: PostgreSQL (credit_scoring)
+     📊 Volume..............: 48,744 lignes · 121 colonnes
+     ⏱️  Performance.........: 46.44s (1,049 l/s)
+  Statut table raw_application_test..: Renommé & Chargé ✅
+  Traitement de..........: bureau.csv
+     📍 Destination.........: PostgreSQL (credit_scoring)
+     📊 Volume..............: 1,716,428 lignes · 17 colonnes
+     ⏱️  Performance.........: 233.26s (7,358 l/s)
+  Statut table raw_bureau..: Chargé brut ✅
+  Traitement de..........: bureau_balance.csv
+```
+
+
+```
+PS C:\Users\Public\IAE_DELL\pra_dell\m6_ocr> uv run python -m src.pipelines.phase1_preparation
+============================================================================
+PHASE 1 — PRÉPARATION DES DONNÉES
+============================================================================
+
+[0] Connexion à la base de données ...
+
+[1] Ingestion des CSV → tables raw_* ...
+
+----------------------------------------------------------------------------
+DÉBUT DE L'INGESTION DES DONNÉES (CSV -> SQL)
+----------------------------------------------------------------------------
+  Traitement de..........: application_train.csv
+     ↳ Mapping technique appliqué via Registry
+     📍 Destination.........: PostgreSQL (credit_scoring)
+     📊 Volume..............: 307,511 lignes · 122 colonnes
+     ⏱️  Performance.........: 41.19s (7,466 l/s)
+  Statut table raw_application_train..: Renommé & Chargé ✅
+  Traitement de..........: application_test.csv
+     ↳ Mapping technique appliqué via Registry
+     📍 Destination.........: PostgreSQL (credit_scoring)
+     📊 Volume..............: 48,744 lignes · 121 colonnes
+     ⏱️  Performance.........: 6.15s (7,928 l/s)
+  Statut table raw_application_test..: Renommé & Chargé ✅
+  Traitement de..........: bureau.csv
+     📍 Destination.........: PostgreSQL (credit_scoring)
+     📊 Volume..............: 1,716,428 lignes · 17 colonnes
+     ⏱️  Performance.........: 34.48s (49,780 l/s)
+  Statut table raw_bureau..: Chargé brut ✅
+  Traitement de..........: bureau_balance.csv
+     📍 Destination.........: PostgreSQL (credit_scoring)
+     📊 Volume..............: 27,299,925 lignes · 3 colonnes
+     ⏱️  Performance.........: 100.04s (272,878 l/s)
+  Statut table raw_bureau_balance..: Chargé brut ✅
+  Traitement de..........: previous_application.csv
+     📍 Destination.........: PostgreSQL (credit_scoring)
+     📊 Volume..............: 1,670,214 lignes · 37 colonnes
+     ⏱️  Performance.........: 88.71s (18,827 l/s)
+  Statut table raw_previous_app..: Chargé brut ✅
+  Traitement de..........: POS_CASH_balance.csv
+     📍 Destination.........: PostgreSQL (credit_scoring)
+     📊 Volume..............: 10,001,358 lignes · 8 colonnes
+     ⏱️  Performance.........: 91.90s (108,830 l/s)
+  Statut table raw_pos_cash..: Chargé brut ✅
+  Traitement de..........: credit_card_balance.csv
+     📍 Destination.........: PostgreSQL (credit_scoring)
+     📊 Volume..............: 3,840,312 lignes · 23 colonnes
+     ⏱️  Performance.........: 129.04s (29,759 l/s)
+  Statut table raw_credit_card..: Chargé brut ✅
+  Traitement de..........: installments_payments.csv
+     📍 Destination.........: PostgreSQL (credit_scoring)
+     📊 Volume..............: 13,605,401 lignes · 8 colonnes
+     ⏱️  Performance.........: 236.12s (57,621 l/s)
+  Statut table raw_installments..: Chargé brut ✅
+----------------------------------------------------------------------------
+INGESTION TERMINÉE AVEC SUCCÈS
+----------------------------------------------------------------------------
+
+    ⏱  Temps d'ingestion..: 730.6s
+```
+
+
+### 1. Le Concept de "Feature Engineering" (Ingénierie des caractéristiques)
+
+La table `application_train` contient des informations statiques (âge, revenus, possession d'une voiture). C'est une "photo" du client à l'instant T. Mais le comportement financier est un **film**.
+
+* **`bureau.csv`** : Comment ce client se comporte-t-il avec **les autres banques** ? Si `application_train` dit qu'il est solvable, mais que `bureau` montre qu'il a 5 crédits impayés ailleurs, ton modèle doit le savoir.
+* **`previous_application.csv`** : A-t-il déjà demandé des crédits chez **nous** ? Lui a-t-on refusé ? Quelqu'un à qui on a refusé 3 crédits récemment présente un profil de risque très différent.
+
+---
+
+### 2. Capturer le comportement temporel et les habitudes
+
+Les tables contenant le mot `balance` ou `installments` sont des séries temporelles. Elles ne sont pas utilisées directement, elles sont **agrégées**.
+
+* **`installments_payments.csv`** : C'est ici que tu découvres si le client est un "retardataire". Tu calcules : *"Combien de fois a-t-il payé après la date limite ces 2 dernières années ?"*. Cette nouvelle colonne sera probablement la variable la plus prédictive de ton modèle.
+* **`credit_card_balance.csv`** : Le client vit-il à la limite de son plafond de carte de crédit chaque mois ? Le taux d'utilisation de la carte est un indicateur de stress financier invisible dans la table principale.
+
+---
+
+### 3. La structure "Une ligne par client"
+
+Pour entraîner le modèle, tu as besoin d'une table finale où **1 ligne = 1 client (`SK_ID_CURR`)**. Le rôle de ton pipeline (via les vues SQL) est de :
+
+1. **Grouper (Group By)** les tables secondaires par identifiant client.
+2. **Calculer des statistiques** (Moyenne des crédits, somme des retards, maximum de jours de retard).
+3. **Joindre (Join)** ces résultats à la table `application_train`.
+
+---
+
+### Que se passe-t-il si tu ne les utilises pas ?
+
+Si tu entraînes ton modèle uniquement avec `application_train` :
+
+* Ton score **AUC (Area Under Curve)** sera faible (environ 0.68 - 0.70).
+* En ajoutant les variables agrégées des autres tables, ton AUC montera à **0.75 - 0.80**. Dans le secteur bancaire, cette différence de 0.10 représente des **millions d'euros** d'économies en évitant des défauts de paiement.
+
+### 💡 Résumé Didactique (Style Yann LeCun)
+
+* **`application_train`** : C'est le sujet (l'individu).
+* **Le reste des tables** : C'est le contexte, l'historique et les habitudes.
+
+Un modèle sans contexte est un modèle "aveugle". C'est pour cela qu'en **Phase 2**, nous créerons la vue `v_master` : la fusion de toute cette intelligence distribuée.
+ 

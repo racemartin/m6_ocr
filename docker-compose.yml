@@ -1,14 +1,19 @@
 services:
   postgres:
     image: postgres:15
+    container_name: postgres_db
     environment:
-      POSTGRES_DB:       mlflow_db
-      POSTGRES_USER:     mlflow_user
+      POSTGRES_DB: mlflow_db        # La première base créée par défaut
+      POSTGRES_USER: mlflow_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     # Le port 5433 sur votre PC pointe vers le port 5432 à l'intérieur du conteneur.
     # Utile si vous avez déjà une instance PostgreSQL locale sur le port 5432.
-    ports: ["5433:5432"]
-    volumes: ["postgres_data:/var/lib/postgresql/data"]
+    ports:
+      - "0.0.0.0:5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # ON MONTE LE SCRIPT D'INITIALISATION ICI :
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
 
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.16.0
@@ -30,7 +35,7 @@ services:
     build: .
     depends_on: [mlflow]
     # Votre API de scoring (FastAPI) sera disponible sur http://localhost:8001.
-    ports: ["8001:8000"]
+    ports: ["0.0.0.0:8001:8000"]
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000
       MODEL_NAME:          credit-scoring-model
@@ -43,10 +48,12 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@admin.com
       PGADMIN_DEFAULT_PASSWORD: admin
-    ports: ["8088:80"]
-    depends_on: [postgres]
-    networks:
-      - default
+      # Optionnel : fixe le mode serveur pour éviter les soucis de session
+      PGADMIN_CONFIG_SERVER_MODE: 'True'
+    ports:
+      - "0.0.0.0:8088:80" # Force l'écoute sur toutes les interfaces réseau
+    depends_on:
+      - postgres
 
 volumes:
   postgres_data:
