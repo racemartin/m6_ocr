@@ -42,7 +42,9 @@ import pandas as pd                               # DataFrames et lecture CSV
 # ----------------------------------------------------------------------------
 from   src.database          import get_engine          # DB PostgreSQL
 from   src.data.schema       import REGISTRY            # Registre des features
+from   src.data.schema       import ColumnType
 from   src.features.registry import FeatureConfigurator # Pipeline sklearn
+
 
 
 # ############################################################################
@@ -50,7 +52,7 @@ from   src.features.registry import FeatureConfigurator # Pipeline sklearn
 # ############################################################################
 
 DEBUG_MODE  = True
-DEBUG_LIMIT = 500  # or None
+DEBUG_LIMIT = 10000  # or None
 
 
 def charger_donnees(
@@ -288,6 +290,19 @@ def run_phase2(
     resultats["shape_train_brut"] = df_train.shape
     resultats["shape_test_brut"]  = df_test.shape
 
+    # ─── NUEVO BLOQUE [1.5] INSERTAR AQUÍ ───────────────────────────
+    print("\n[1.5] Sincronizando tipos categóricos con AttributeSpec...")
+    
+    # Extraemos nombres de columnas que definiste como categóricas en schema.py
+    cat_cols = [attr.name_technique for attr in REGISTRY.attributes if attr.col_type == ColumnType.CATEGORICAL]
+    
+    for col in cat_cols:
+        if col in df_train.columns:
+            df_train[col] = df_train[col].astype(str).replace(['None', 'nan', 'NULL'], np.nan)
+        if col in df_test.columns:
+            df_test[col]  = df_test[col].astype(str).replace(['None', 'nan', 'NULL'], np.nan)
+    # ────────────────────────────────────────────────────────────────
+    
     # ── [2] Validation du DataFrame contre le REGISTRY ───────────────────
     print("\n[2] Validation contre le REGISTRY ...")
     config     = FeatureConfigurator(registry=REGISTRY, verbose=True)

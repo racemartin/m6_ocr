@@ -1,0 +1,10 @@
+Rapport de Matrice de Confusion : decision_tree
+==================================================
+
+TRAIN SET :
+[[4176 3189]
+ [ 108  527]]
+
+EVAL SET (Holdout) :
+[[1000  841]
+ [  53  106]]

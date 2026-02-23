@@ -1,0 +1,10 @@
+Rapport de Matrice de Confusion : gradient_boosting
+==================================================
+
+TRAIN SET :
+[[7365    0]
+ [ 566   69]]
+
+EVAL SET (Holdout) :
+[[1834    7]
+ [ 152    7]]

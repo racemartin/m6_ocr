@@ -15,8 +15,8 @@ Prérequis : phase1_1_inject_raw.py doit avoir été exécuté
     7. Rapport de synthèse
 
 Usage :
-    python -m src.pipelines.phase1_2_views_fe_enum
-    python -m src.pipelines.phase1_2_views_fe_enum --no-export --no-enums
+    uv run python -m src.pipelines.phase1_2_views_fe_enum
+    uv run python -m src.pipelines.phase1_2_views_fe_enum --no-export --no-enums
 """
 
 from __future__ import annotations

@@ -1,0 +1,10 @@
+Rapport de Matrice de Confusion : logistic_regression
+==================================================
+
+TRAIN SET :
+[[4758 2607]
+ [ 275  360]]
+
+EVAL SET (Holdout) :
+[[1192  649]
+ [  75   84]]

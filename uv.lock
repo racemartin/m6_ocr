@@ -435,6 +435,15 @@ wheels = [
 ]
 
 [[package]]
+name = "bottle"
+version = "0.13.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7a/71/cca6167c06d00c81375fd668719df245864076d284f7cb46a694cbeb5454/bottle-0.13.4.tar.gz", hash = "sha256:787e78327e12b227938de02248333d788cfe45987edca735f8f88e03472c3f47", size = 98717, upload-time = "2025-06-15T10:08:59.439Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/83/f6/b55ec74cfe68c6584163faa311503c20b0da4c09883a41e8e00d6726c954/bottle-0.13.4-py2.py3-none-any.whl", hash = "sha256:045684fbd2764eac9cdeb824861d1551d113e8b683d8d26e296898d3dd99a12e", size = 103807, upload-time = "2025-06-15T10:08:57.691Z" },
+]
+
+[[package]]
 name = "brotli"
 version = "1.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -668,6 +677,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d8/53/6f443c9a4a8358a93a6792e2acffb9d9d5cb0a5cfd8802644b7b1c9a02e4/colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44", size = 27697, upload-time = "2022-10-25T02:36:22.414Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6", size = 25335, upload-time = "2022-10-25T02:36:20.889Z" },
+]
+
+[[package]]
+name = "colorlog"
+version = "6.10.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a2/61/f083b5ac52e505dfc1c624eafbf8c7589a0d7f32daa398d2e7590efa5fda/colorlog-6.10.1.tar.gz", hash = "sha256:eb4ae5cb65fe7fec7773c2306061a8e63e02efc2c72eba9d27b0fa23c94f1321", size = 17162, upload-time = "2025-10-16T16:14:11.978Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6d/c1/e419ef3723a074172b68aaa89c9f3de486ed4c2399e2dbd8113a4fdcaf9e/colorlog-6.10.1-py3-none-any.whl", hash = "sha256:2d7e8348291948af66122cff006c9f8da6255d224e7cf8e37d8de2df3bad8c9c", size = 11743, upload-time = "2025-10-16T16:14:10.512Z" },
 ]
 
 [[package]]
@@ -2457,6 +2478,8 @@ dependencies = [
     { name = "mlflow", version = "2.22.4", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
     { name = "mlflow", version = "3.9.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
     { name = "numpy" },
+    { name = "optuna" },
+    { name = "optuna-dashboard" },
     { name = "pandas" },
     { name = "polars" },
     { name = "psycopg2-binary" },
@@ -2469,6 +2492,16 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "xgboost" },
+]
+
+[package.optional-dependencies]
+test = [
+    { name = "faker" },
+    { name = "httpx" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "pytest-xprocess" },
 ]
 
 [package.dev-dependencies]
@@ -2488,14 +2521,6 @@ dev = [
     { name = "tox", version = "4.34.1", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
     { name = "ydata-profiling" },
 ]
-test = [
-    { name = "faker" },
-    { name = "httpx" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "pytest-xprocess" },
-]
 
 [package.metadata]
 requires-dist = [
@@ -2503,19 +2528,27 @@ requires-dist = [
     { name = "bentoml", specifier = ">=1.1.9" },
     { name = "catboost", specifier = ">=1.2.8" },
     { name = "evidently", specifier = ">=0.4.11" },
+    { name = "faker", marker = "extra == 'test'", specifier = ">=20.1.0" },
     { name = "fastapi", specifier = ">=0.104.1" },
     { name = "gradio", specifier = ">=6.5.1" },
     { name = "gunicorn", specifier = ">=21.2.0" },
+    { name = "httpx", marker = "extra == 'test'", specifier = ">=0.25.2" },
     { name = "imbalanced-learn", specifier = ">=0.14.1" },
     { name = "joblib", specifier = ">=1.3.2" },
     { name = "lightgbm", specifier = ">=4.3.0" },
     { name = "mlflow", specifier = ">=2.8.1" },
     { name = "numpy", specifier = ">=2.2.2" },
+    { name = "optuna", specifier = ">=4.7.0" },
+    { name = "optuna-dashboard", specifier = ">=0.20.0" },
     { name = "pandas", specifier = ">=2.3.3" },
     { name = "polars", specifier = ">=1.37.1" },
     { name = "psycopg2-binary", specifier = ">=2.9.9" },
     { name = "pydantic", specifier = ">=2.5.0" },
     { name = "pydantic-settings", specifier = ">=2.1.0" },
+    { name = "pytest", marker = "extra == 'test'", specifier = ">=7.4.3" },
+    { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=1.3.0" },
+    { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=7.0.0" },
+    { name = "pytest-xprocess", marker = "extra == 'test'", specifier = ">=1.0.2" },
     { name = "python-dotenv", specifier = ">=1.2.1" },
     { name = "python-multipart", specifier = ">=0.0.6" },
     { name = "scikit-learn", specifier = ">=1.3.2" },
@@ -2524,6 +2557,7 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.24.0" },
     { name = "xgboost", specifier = ">=2.1.4" },
 ]
+provides-extras = ["test"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2540,14 +2574,6 @@ dev = [
     { name = "ruff", specifier = ">=0.14.14" },
     { name = "tox", specifier = ">=4.27.0" },
     { name = "ydata-profiling", specifier = ">=4.18.0" },
-]
-test = [
-    { name = "faker", specifier = ">=20.1.0" },
-    { name = "httpx", specifier = ">=0.25.2" },
-    { name = "pytest", specifier = ">=7.4.3" },
-    { name = "pytest-asyncio", specifier = ">=1.3.0" },
-    { name = "pytest-cov", specifier = ">=7.0.0" },
-    { name = "pytest-xprocess", specifier = ">=1.0.2" },
 ]
 
 [[package]]
@@ -2989,6 +3015,38 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/50/fc/c47bb04a1d8a941a4061307e1eddfa331ed4d0ab13d8a9781e6db256940a/opentelemetry_util_http-0.60b1.tar.gz", hash = "sha256:0d97152ca8c8a41ced7172d29d3622a219317f74ae6bb3027cfbdcf22c3cc0d6", size = 11053, upload-time = "2025-12-11T13:37:25.115Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/16/5c/d3f1733665f7cd582ef0842fb1d2ed0bc1fba10875160593342d22bba375/opentelemetry_util_http-0.60b1-py3-none-any.whl", hash = "sha256:66381ba28550c91bee14dcba8979ace443444af1ed609226634596b4b0faf199", size = 8947, upload-time = "2025-12-11T13:36:37.151Z" },
+]
+
+[[package]]
+name = "optuna"
+version = "4.7.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "alembic" },
+    { name = "colorlog" },
+    { name = "numpy" },
+    { name = "packaging", version = "24.2", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "packaging", version = "25.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
+    { name = "pyyaml" },
+    { name = "sqlalchemy" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/58/b2/b5e12de7b4486556fe2257611b55dbabf30d0300bdb031831aa943ad20e4/optuna-4.7.0.tar.gz", hash = "sha256:d91817e2079825557bd2e97de2e8c9ae260bfc99b32712502aef8a5095b2d2c0", size = 479740, upload-time = "2026-01-19T05:45:52.604Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/75/d1/6c8a4fbb38a9e3565f5c36b871262a85ecab3da48120af036b1e4937a15c/optuna-4.7.0-py3-none-any.whl", hash = "sha256:e41ec84018cecc10eabf28143573b1f0bde0ba56dba8151631a590ecbebc1186", size = 413894, upload-time = "2026-01-19T05:45:50.815Z" },
+]
+
+[[package]]
+name = "optuna-dashboard"
+version = "0.20.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "bottle" },
+    { name = "optuna" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a6/c5/5fc8e8327f40c1406dbe4a1ac052e05751a5bd4f594d9a517f1ca905c03b/optuna_dashboard-0.20.0.tar.gz", hash = "sha256:52a6da480a2500b6993c8fa61c81063b0dbe730edbd9f651c81b318393cca71d", size = 8378143, upload-time = "2025-11-10T05:27:18.908Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a8/5a/90ffcd3e6ad99863a18cf3d4aa8289ce997ccf6f2b9d0f8f291af4075729/optuna_dashboard-0.20.0-py3-none-any.whl", hash = "sha256:7fe92a6b1ba8f1f77d29ff8a86fa09a01cd736e411e354d0c96c05cd4a86c289", size = 8400813, upload-time = "2025-11-10T05:27:16.666Z" },
 ]
 
 [[package]]

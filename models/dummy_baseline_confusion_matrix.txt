@@ -1,0 +1,10 @@
+Rapport de Matrice de Confusion : dummy_baseline
+==================================================
+
+TRAIN SET :
+[[6793  572]
+ [ 575   60]]
+
+EVAL SET (Holdout) :
+[[1687  154]
+ [ 145   14]]

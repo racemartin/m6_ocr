@@ -1,0 +1,10 @@
+Rapport de Matrice de Confusion : lightgbm
+==================================================
+
+TRAIN SET :
+[[6682  683]
+ [   6  629]]
+
+EVAL SET (Holdout) :
+[[1582  259]
+ [ 100   59]]

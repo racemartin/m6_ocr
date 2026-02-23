@@ -341,6 +341,8 @@ docker exec -it postgres_db psql -U postgres -c "CREATE DATABASE credit_scoring 
 docker exec -it postgres_db psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE credit_scoring TO mlflow_user;"
 
 
+### PRIVILEGES credit_scoring TO mlflow_user;
+
 # 1. Création de l'utilisateur 'credit_user' (via mlflow_user)
 docker exec -it postgres_db psql -U mlflow_user -d mlflow_db -c "CREATE USER credit_user WITH PASSWORD 'admin';"
 
@@ -349,6 +351,23 @@ docker exec -it postgres_db psql -U mlflow_user -d mlflow_db -c "CREATE DATABASE
 
 # 3. Attribution des droits (pour que mlflow_user puisse aussi y accéder)
 docker exec -it postgres_db psql -U mlflow_user -d mlflow_db -c "GRANT ALL PRIVILEGES ON DATABASE credit_scoring TO mlflow_user;"
+
+
+### PRIVILEGES mlflow_db TO mlflow_user
+
+
+docker exec -it postgres_db psql -U mlflow_user -d postgres -c "ALTER USER mlflow_user WITH PASSWORD 'admin';"
+
+
+# 1. Dar permiso de conexión
+docker exec -it postgres_db psql -U mlflow_user -d postgres -c "GRANT CONNECT ON DATABASE mlflow_db TO mlflow_user;"
+
+# 2. Dar todos los privilegios (por si acaso)
+
+
+### Voir PRIVILEGES 
+
+docker exec -it postgres_db psql -U mlflow_user -d postgres -c "\l"
 
 
 ---
@@ -452,6 +471,8 @@ uv run ruff format --check .
 cd C:\Projets\credit-scoring-mlops
 
 # Démarrer PostgreSQL + MLflow
+docker compose up -d mlflow
+docker compose up -d postgres 
 docker compose up -d postgres mlflow
 
 # Vérifier que tout tourne

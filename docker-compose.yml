@@ -19,13 +19,16 @@ services:
     image: ghcr.io/mlflow/mlflow:v2.16.0
     depends_on: [postgres]
     # Modificamos el comando para instalar psycopg2-binary antes de arrancar
+    environment:
+      # Inyectamos la variable del .env al contenedor
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     entrypoint: >
       /bin/sh -c "
       pip install psycopg2-binary &&
       mlflow server
       --host 0.0.0.0
       --port 5000
-      --backend-store-uri postgresql://mlflow_user:$POSTGRES_PASSWORD@postgres:5432/mlflow_db
+      --backend-store-uri postgresql://mlflow_user:$$POSTGRES_PASSWORD@postgres:5432/mlflow_db
       --default-artifact-root /mlflow/artifacts
       "
     ports: ["5001:5000"]
