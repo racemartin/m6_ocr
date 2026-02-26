@@ -1,4 +1,14 @@
 
+# VS Code → instalar extensión "PlantUML" (jebbs)
+# IntelliJ → Plugin PlantUML integration
+# Online   → https://www.plantuml.com/plantuml/uml/
+
+# O con Java (si tienes plantuml.jar):
+java -jar plantuml.jar phase4_activity_diagram.puml -tpng
+java -jar plantuml.jar phase4_sequence_diagram.puml -tsvg
+
+
+
 
 V0
 def _build_models_config(random_state: int = 42) -> Dict:
@@ -68,6 +78,18 @@ Rang              Modèle  AUC-ROC(eval)  F2(eval)  F1(eval)  Recall(eval)  Prec
        gradient_boosting         0.7432    0.0538    0.0809        0.0440           0.5000     0.1305      0.0266     0.0234       0.1151      30.66           ✅   d0a74e40
 ==============================================================================================================
 
-
+==============================================================================================================
+COMPARAISON DES MODÈLES — Phase 3   (trié par F2-Score eval)
+==============================================================================================================
+Rang              Modèle  AUC-ROC(eval)  F2(eval)  F1(eval)  Recall(eval)  Precision(eval)  MCC(eval)  F1 CV mean  F1 CV std  Overfit ΔF1  Train (s) Overfitting MLflow Run
+   🏆       decision_tree         0.6734    0.3860    0.2343        0.6792           0.1415     0.1801      0.2186     0.0148       0.0215       0.54           ✅   28104e4b
+                 xgboost         0.7229    0.3578    0.2627        0.4717           0.1820     0.1931      0.2613     0.0295       0.2443       1.75           ❗   f03ae53f
+                lightgbm         0.7204    0.3432    0.2685        0.4214           0.1971     0.1967      0.2558     0.0438       0.3775       1.18           ❗   9d8b7cca
+     logistic_regression         0.6148    0.2727    0.1708        0.4528           0.1053     0.0687      0.1923     0.0191       0.0291       3.69           ✅   73e54f4e
+           random_forest         0.7348    0.2538    0.2572        0.2516           0.2632     0.1947      0.2180     0.0414       0.5339       2.36           ❗   a1b7faf2
+          dummy_baseline         0.5022    0.0871    0.0856        0.0881           0.0833     0.0043      0.0931     0.0177       0.0091       0.00           ✅   8879e187
+                     mlp         0.5199    0.0714    0.0897        0.0629           0.1562     0.0516      0.1078     0.0375       0.0410       6.64           ✅   a4504562
+       gradient_boosting         0.7407    0.0386    0.0585        0.0314           0.4167     0.0968      0.0507     0.0221       0.1773      28.92           ❗   731d828e
+==============================================================================================================
 
 

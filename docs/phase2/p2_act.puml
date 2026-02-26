@@ -1,0 +1,136 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FAFAFA
+skinparam ActivityBackgroundColor #EBF4FB
+skinparam ActivityBorderColor #2E86AB
+skinparam ArrowColor #2E86AB
+skinparam DiamondBackgroundColor #FFF3CD
+skinparam DiamondBorderColor #F4A261
+skinparam NoteBackgroundColor #E8F8F5
+skinparam NoteBorderColor #3BB273
+
+title **Phase 2 · Activity — Feature Engineering & Preprocessing sklearn**
+
+start
+
+:CLI : `python -m src.pipelines.phase2_feature_engineering`
+**--source** [db|csv]  **--output-dir** data/processed;
+
+partition "STEP 1 · Chargement Données" {
+    if (source == "db" ?) then (oui)
+        :Connexion PostgreSQL;
+        :Exécuter SELECT sur v_features_engineering
+        `WHERE sk_id_curr IN (...)`
+        `[LIMIT si DEBUG_MODE]`;
+    else (csv)
+        :Chargement via pandas;
+        :pd.read_csv("data/interim/master_train.csv")
+        pd.read_csv("data/interim/master_test.csv");
+    endif
+    note right 
+        df_train : ~307k × 300+ cols
+        df_test  :  ~48k × 300+ cols
+    end note
+}
+
+partition "STEP 1.5 · Sync Types Catégoriels" {
+    :Extraire cat_cols depuis REGISTRY
+    **(ColumnType.CATEGORICAL)**;
+    
+    :Pour chaque col catégorielle :
+    1. Remplacer [None, nan, NULL] par NaN
+    2. Conversion .astype(str);
+    
+    note right 
+        Anti-bug : PostgreSQL peut 
+        renvoyer "None" ou "NULL" 
+        sous forme de chaînes de caractères.
+    end note
+}
+
+partition "STEP 2 · Validation REGISTRY" {
+    :FeatureConfigurator(registry=REGISTRY);
+    :REGISTRY.validate_dataframe(list(df_train.columns));
+    note right 
+        Vérification : ok / inconnu / manquant
+        ⚠️ Colonnes inconnues → avertissement
+    end note
+}
+
+partition "STEP 3 · Fit sur Train (anti-leakage)" {
+    :config.fit(df_train);
+    note right
+        Apprend UNIQUEMENT sur train :
+        → médianes (imputation)
+        → StandardScaler / RobustScaler
+        → catégories OHE
+        **⚠️ JAMAIS fit sur df_test**
+    end note
+}
+
+partition "STEP 4 · Target Encoding (optionnel)" {
+    if (colonnes haute\ncardinalité ?) then (oui)
+        :config.fit_target_encoding(df_train, smoothing=1.0);
+        note right : Régularisation bayésienne
+    else (non)
+        :Ignoré;
+    endif
+}
+
+partition "STEP 5 · Transform Train" {
+    :X_train = config.transform(df_train);
+    :y_train = config.get_target(df_train);
+    note right : Imputation + Scaling + OHE
+}
+
+partition "STEP 6 · Transform Test" {
+    :X_test = config.transform(df_test);
+    note right : Utilise les paramètres du Train
+}
+
+partition "STEP 7 · Alignement Colonnes OHE" {
+    :Calculer différence de colonnes;
+    :Ajouter colonnes manquantes à 0.0;
+    :X_test = X_test[X_train.columns];
+    note right : Assure que le modèle reçoit les mêmes colonnes
+}
+
+partition "STEP 8 · Contrôles Qualité" {
+    :Vérifier NaN résiduels;
+    :Vérifier colonnes à variance nulle;
+    :Vérifier valeurs infinies;
+}
+
+partition "STEP 9 · Sauvegarde Artefacts sklearn" {
+    :config.save_artifacts(artifacts_dir);
+    note right : Sauvegarde **preprocessor.pkl**
+}
+
+partition "STEP 10 · Export Datasets Finaux" {
+    if (export_csv ?) then (oui)
+        :Export X_train, X_test, y_train;
+        :Export test_ids.csv;
+    else (non)
+        :Ignoré (--no-export);
+    endif
+}
+
+:Afficher REGISTRY.summary();
+:Générer Rapport final;
+
+:Retourner résultats (shapes, nb_features);
+
+stop
+
+legend right
+  |= Artefacts produits |
+  | data/processed/X_train.csv |
+  | data/processed/X_test.csv |
+  | data/processed/y_train.csv |
+  | data/processed/test_ids.csv |
+  | models/preprocessor/preprocessor.pkl |
+  ──────────────────────────────────────────
+  ⮕  Suite : phase3_model_training_mlflow
+endlegend
+
+@enduml

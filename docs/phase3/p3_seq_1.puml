@@ -1,0 +1,79 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FAFAFA
+skinparam ParticipantBackgroundColor #EBF4FB
+skinparam ParticipantBorderColor #2E86AB
+skinparam SequenceArrowColor #2E86AB
+skinparam NoteBackgroundColor #E8F8F5
+skinparam NoteBorderColor #1ABC9C
+skinparam SequenceDividerBackgroundColor #D5E8D4
+skinparam SequenceDividerBorderColor #82B366
+
+title **Phase 3 · Séquence (1/2) — Setup → Entraînement + MLflow**
+
+actor "Dev" as DEV
+
+box "Python Process" #EBF4FB
+  participant "Phase3\nPipeline" as P3
+  participant "Classification\nModeler" as CM
+end box
+
+box "Filesystem" #F0FFF4
+  participant "data/processed\n(CSV)" as FP
+  participant "models/" as FM
+end box
+
+box "Services" #FFF8E8
+  participant "PostgreSQL\n:5432" as PG
+  participant "MLflow\n:5001" as MLF
+end box
+
+== STEP 0 · Setup MLflow ==
+DEV -> P3  : python -m phase3_model_training_mlflow\n--source db --eval-ratio 0.20
+P3  -> MLF : set_tracking_uri("http://localhost:5001")\nget_experiment("Smart_Credit_Scoring")
+MLF --> P3 : experiment_id ✅
+note right of MLF : autolog(disable=True)\n→ logging 100% manuel
+
+== STEP 1 · Chargement Données ==
+P3  -> PG  : SELECT * FROM v_features_engineering\nWHERE split='train'
+PG --> P3  : df_raw (~307k lignes × 303 cols)
+P3  -> P3  : _validate_data()\n→ drop TARGET NULL\n→ forcer int(0/1)\n→ défauts=8.07%
+note right of P3 : Fallback CSV :\ndata/processed/X_train.csv
+
+== STEP 2 · Split Stratifié 80/20 ==
+P3  -> P3  : Éliminer {target, split, sk_id_curr}\nreplace(inf→nan).fillna(0)
+P3  -> P3  : train_test_split(\n  stratify=y, test_size=0.20\n  random_state=42\n)
+note right of P3
+  X_train : 192 428 × 300
+  X_eval  :  48 107 × 300
+  y_train : défauts 8.07%
+  y_eval  : défauts 8.07%
+end note
+
+== STEP 3 · ClassificationModeler ==
+P3  -> CM  : ClassificationModeler(\n  X_train, y_train\n  X_test=X_eval  ← holdout\n  y_test=y_eval\n  CV_FOLDS=5\n)
+CM --> P3  : modeler prêt (StratifiedKFold 5-plis)
+
+== STEP 4 · Boucle 8 Modèles ==
+
+loop pour chaque modèle du catalogue (8 modèles)
+  P3  -> CM  : modeler.entrainer_modele(\n  modele=model\n  nom=model_name\n)
+  note over CM
+    1. CV 5-plis StratifiedKFold sur X_train
+       → cv_f2_mean ± std
+    2. fit complet sur X_train
+    3. predict / predict_proba sur X_eval
+    4. métriques train + eval + confusion matrix
+  end note
+  CM --> P3  : results {\n  modele (fitté)\n  scores_train, scores_test, scores_cv\n  matrice_confusion\n  predictions.y_test_proba\n}
+
+  P3  -> MLF : start_run("model_name_run")\n  set_tags(model_name, model_class\n             phase=phase3, debug_mode)\n  log_params(model_*, cv_folds=5\n             n_features=300, train_samples...)\n  log_metric(train_f1, train_f2, train_auc)\n  log_metric(eval_f1, eval_f2, eval_auc)\n  log_metric(cv_f2_mean, cv_f2_std)\n  log_metric(overfitting_f2 = train_f2-eval_f2)\n  log_metric(train_time_s)\n  sklearn.log_model(results["modele"], "model")\nend_run()
+
+  P3  -> FM  : Écrire <nom>_confusion_matrix.txt\n(train + eval)
+  P3  -> FM  : Écrire <nom>_feature_importance.csv\n(feature_importances_ ou coef_)
+  P3  -> MLF : log_artifact(confusion_matrix.txt)\nlog_artifact(feature_importance.csv)\nlog_input(train_data, context="training")
+
+  MLF --> P3 : run_id sauvegardé
+end
+
+@enduml

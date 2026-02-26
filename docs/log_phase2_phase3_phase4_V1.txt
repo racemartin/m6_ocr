@@ -1,0 +1,952 @@
+============================================================================
+PHASE 2 — FEATURE ENGINEERING & PREPROCESSING
+============================================================================
+
+[1] Chargement des données ...
+  Chargement depuis v_features_engineering ...
+SELECT * FROM v_features_engineering WHERE split = 'train' ...
+SELECT * FROM v_features_engineering WHERE split = 'test' ...
+  Train..:  307,511 lignes × 183 colonnes
+  Test...:   48,744 lignes × 183 colonnes
+
+[1.5] Sincronizando tipos categóricos con AttributeSpec...
+
+[2] Validation contre le REGISTRY ...
+    DataFrame cohérent avec le REGISTRY
+
+[3] Fit du FeatureConfigurator sur le train ...
+
+============================================================================
+FEATURE CONFIGURATOR — FIT
+============================================================================
+
+  Listes dérivées automatiquement depuis le registre :
+    OHE           : 14 cols
+    Ordinal       : 1 cols
+    Target Enc.   : 1 cols
+    Log           : 32 cols
+    Standard      : 75 cols
+    Robust        : 8 cols
+    Binaires      : 29 cols
+
+  ── Apprentissage imputation ...
+     110 médianes · 13 modes
+  ── Apprentissage transformation log ...
+  ── Apprentissage winsorisation ...
+
+  ── Construction ColumnTransformer ...
+
+     ── 1. Limpieza de duplicados internos de cada lista ...
+
+     ── 1. OHE ...
+
+     ── 2. Ordinal ...
+
+     ── 3. Log → Standard ...
+
+
+     ── 5. Robust ...
+
+     ── 6. Binaires (pass-through avec imputation) ...
+
+
+     ── 7. Target encoding (simple mean encoding) ...
+
+     ── Fit du ColumnTransformer sur les données d'entrainement ...
+REGISTRY attributes counter:
+279
+REGISTRY attributes counter:
+279
+C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\sklearn\impute\_base.py:641: UserWarning: Skipping features without any observed values: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+ 24 25 26 27 28]. At least one non-missing value is needed for imputation with strategy='constant'.
+  warnings.warn(
+
+     ── preprocessor.fit(X_train) Done!
+     ✅ 233 features en sortie
+
+  ✅ FeatureConfigurator fitted.
+
+    Durée fit...............: 94.2s
+
+[4] Target encoding (1 colonne(s)) ...
+     Target enc. organization_type: 58 modalités
+
+[5] Transformation du train ...
+REGISTRY attributes counter:
+279
+REGISTRY attributes counter:
+279
+C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\sklearn\impute\_base.py:641: UserWarning: Skipping features without any observed values: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+ 24 25 26 27 28]. At least one non-missing value is needed for imputation with strategy='constant'.
+  warnings.warn(
+    X_train shape...........: (307511, 233)  (48.9s)
+
+[6] Transformation du test ...
+REGISTRY attributes counter:
+279
+REGISTRY attributes counter:
+279
+C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\sklearn\impute\_base.py:641: UserWarning: Skipping features without any observed values: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+ 24 25 26 27 28]. At least one non-missing value is needed for imputation with strategy='constant'.
+  warnings.warn(
+    X_test  shape...........: (48744, 233)  (8.7s)
+
+[7] Alignement colonnes train / test ...
+    Features finales........: 233
+
+[8] Contrôles qualité ...
+    Pas de NaN dans X_train
+    Pas de NaN dans X_test
+    Pas de colonnes constantes détectées
+    Taux de défaut (train)..: 8.1%
+
+[9] Sauvegarde des artefacts ...
+
+  💾 Artefacts sauvegardés : models\preprocessor/
+     preprocessor.pkl · learned_params.json · feature_names.json · registry_snapshot.yaml
+
+[10] Export des datasets finaux ...
+    X_train.csv............: (307511, 233)
+    X_test.csv.............: (48744, 233)
+    y_train.csv............: (307511,)
+
+[10.1] Exportation des matrices vers PostgreSQL ...
+    Table 'ml_X_train'......: (307511, 233) [OK]
+    Table 'ml_X_test'.......: (48744, 233) [OK]
+    Table 'ml_y_train'......: (307511, 1) [OK]
+
+============================================================================
+RAPPORT DU REGISTRE
+============================================================================
+  Attributs total........: 279
+  Encodage One-Hot........: 29
+  Encodage ordinal........: 4
+  Target encoding.........: 1
+  Transform log...........: 53
+  StandardScaler..........: 110
+  RobustScaler............: 8
+
+============================================================================
+RAPPORT DE LA PHASE 2
+============================================================================
+  Features finales........: 233
+  X_train shape...........: (307511, 233)
+  X_test  shape...........: (48744, 233)
+  Durée totale............: 2994.8s
+============================================================================
+
+  Suite : python -m src.pipelines.phase3_training
+  X_train = pd.read_csv('data/processed/X_train.csv')
+============================================================================
+⚠️  PRÉREQUIS : démarrer MLflow UI dans un terminal séparé
+   Terminal 1 →  mlflow ui --port 5000
+============================================================================
+
+============================================================================
+🚀 PHASE 3 — CLASSIFICATION + MLFLOW TRACKING
+   Projet : Prêt à Dépenser — Home Credit Default Risk
+============================================================================
+
+############################################################################
+📊 STEP 0. Configuration MLflow ...
+ℹ️  Expérience existante (ID=2)
+✅ MLflow prêt → http://localhost:5001
+
+############################################################################
+📊 STEP 1. Chargement données (source=db) ...
+ℹ️  Lecture des tables ml_X_train et ml_y_train ...
+✅ Tables SQL chargées en 127.0s — 307,511 lignes × 192 colonnes
+ℹ️  Remboursés (0) : 282,686  (91.9%)
+ℹ️  Défauts    (1) :  24,825  (8.1%)
+⚠️  Déséquilibre   : 1 défaut pour ~11 remboursements → class_weight='balanced' / scale_pos_weight=11
+
+############################################################################
+📊 STEP 2. Split stratifié — train 80% / eval 20% ...
+⚠️  Colonnes string ignorées : ['target_enc__organization_type']
+✅ X_train : (246008, 190)  défauts=8.1%
+✅ X_eval  : (61503, 190)  défauts=8.1%
+ℹ️  Features totales : 190
+
+############################################################################
+📊 STEP 3. Initialisation ClassificationModeler ...
+
+================================================================================
+🎯 CLASSIFICATION MODELER INITIALISÉ
+================================================================================
+  Samples Train.......: 246008
+  Features Train......: 190
+  Samples Test........: 61503
+
+  DISTRIBUTION DES CLASSES (TRAIN) :
+    Classe 0..........: 91.93%
+    Classe 1..........: 8.07%
+
+  DISTRIBUTION DES CLASSES (TEST) :
+    Classe 0..........: 91.93%
+    Classe 1..........: 8.07%
+
+  ⚠️  DATASET DÉSÉQUILIBRÉ (Ratio 11.39:1)
+     Conseil : Utiliser class_weight='balanced' dans vos modèles
+
+  Random State........: 42
+  CV Folds (Stratified): 5
+  Seuil de Décision...: 0.5
+  Métriques actives...: ['accuracy', 'precision', 'recall', 'f1', 'f2', 'roc_auc', 'log_loss']
+================================================================================
+
+✅ ClassificationModeler prêt (StratifiedKFold 5-plis) ✓
+
+############################################################################
+📊 STEP 4. Entraînement de tous les modèles ...
+
+------------------------------------------------------------
+📊 [1/8]  DUMMY_BASELINE
+ℹ️    Baseline plancher — aléatoire stratifié
+
+================================================================================
+🎯 EXPÉRIENCE #1 : dummy_baseline
+================================================================================
+
+🔄 Validation Croisée Stratifiée (5 plis)...
+   Résultats :
+   ACCURACY   → Train: 0.8519 (±0.0002) | CV: 0.8519 (±0.0009)
+   PRECISION  → Train: 0.0811 (±0.0013) | CV: 0.0823 (±0.0054)
+   RECALL     → Train: 0.0808 (±0.0013) | CV: 0.0822 (±0.0054)
+   F1         → Train: 0.0809 (±0.0013) | CV: 0.0822 (±0.0054)
+   F2         → Train: 0.0808 (±0.0013) | CV: 0.0822 (±0.0054)
+   ROC_AUC    → Train: 0.5002 (±0.0007) | CV: 0.5009 (±0.0029)
+   LOG_LOSS   → Train: 5.3377 (±0.0074) | CV: 5.3369 (±0.0313)
+
+🏋️  Entraînement sur 246008 échantillons...
+   ✅ Complété en 0.06s
+
+🔮 Génération des prédictions...
+   Train - Classe positive: 8.08%
+   Test  - Classe positive: 7.99%
+
+✅ Généralisation optimale (pas d'overfitting)
+
+──────────────────────────────────────────────────────────────────────
+📊 RAPPORT DE CLASSIFICATION (dummy_baseline)
+──────────────────────────────────────────────────────────────────────
+              precision    recall  f1-score   support
+
+           0       0.92      0.92      0.92     56538
+           1       0.08      0.08      0.08      4965
+
+    accuracy                           0.85     61503
+   macro avg       0.50      0.50      0.50     61503
+weighted avg       0.85      0.85      0.85     61503
+
+
+───────────────────────────────────────────────────────────────────────────
+📊 RÉSUMÉ COMPARATIF DES PERFORMANCES
+───────────────────────────────────────────────────────────────────────────
+Métrique        |      Train |       Test |          Δ
+---------------------------------------------------------------------------
+ACCURACY        |     0.8515 |     0.8528 |    -0.0013
+PRECISION       |     0.0807 |     0.0837 |    -0.0030
+RECALL          |     0.0808 |     0.0828 |    -0.0020
+F1              |     0.0808 |     0.0832 |    -0.0025
+F2              |     0.0808 |     0.0830 |    -0.0022
+SPECIFICITE     |     0.9192 |     0.9204 |    -0.0012
+ROC_AUC         |     0.5000 |     0.5016 |    -0.0016
+MCC             |    -0.0000 |     0.0032 |    -0.0032
+================================================================================
+
+📈   MLflow run 6dc5b080...
+2026/02/26 01:47:22 WARNING mlflow.utils.environment: Failed to resolve installed pip version. ``pip`` will be added to conda.yaml environment spec without a version specifier.
+ℹ️    ⚠️  Le modèle ne supporte pas l'importance des variables
+🏃 View run dummy_baseline_run at: http://localhost:5001/#/experiments/2/runs/6dc5b080cfd643ada410705a24ceb038
+🧪 View experiment at: http://localhost:5001/#/experiments/2
+
+============================================================================
+RAPPORT D'ENTRAÎNEMENT : dummy_baseline
+============================================================================
+  ID du Run MLflow....: 6dc5b080cfd643ada410705a24ceb038
+  Échantillons Train..: 246008
+  Échantillons Eval...: 61503
+  F1-Score (Eval).....: 0.0832
+  F2-Score (Recall++).: 0.0830
+  Indicateur Overfit..: -0.0022 (Basé sur F2)
+  Temps d'exécution...: 0.06 secondes
+============================================================================
+
+✅   ✓ dummy_baseline — logué avec succès
+
+------------------------------------------------------------
+📊 [2/8]  LOGISTIC_REGRESSION
+ℹ️    Linéaire — stable et interprétable
+
+================================================================================
+🎯 EXPÉRIENCE #2 : logistic_regression
+================================================================================
+
+🔄 Validation Croisée Stratifiée (5 plis)...
+   Résultats :
+   ACCURACY   → Train: 0.6867 (±0.0007) | CV: 0.6858 (±0.0026)
+   PRECISION  → Train: 0.1609 (±0.0005) | CV: 0.1598 (±0.0024)
+   RECALL     → Train: 0.6836 (±0.0015) | CV: 0.6792 (±0.0084)
+   F1         → Train: 0.2605 (±0.0008) | CV: 0.2587 (±0.0037)
+   F2         → Train: 0.4144 (±0.0011) | CV: 0.4116 (±0.0055)
+   ROC_AUC    → Train: 0.7492 (±0.0009) | CV: 0.7460 (±0.0039)
+   LOG_LOSS   → Train: 0.5935 (±0.0006) | CV: 0.5943 (±0.0014)
+
+🏋️  Entraînement sur 246008 échantillons...
+   ✅ Complété en 29.64s
+
+🔮 Génération des prédictions...
+   Train - Classe positive: 34.30%
+   Test  - Classe positive: 34.06%
+
+✅ Généralisation optimale (pas d'overfitting)
+
+──────────────────────────────────────────────────────────────────────
+📊 RAPPORT DE CLASSIFICATION (logistic_regression)
+──────────────────────────────────────────────────────────────────────
+              precision    recall  f1-score   support
+
+           0       0.96      0.69      0.80     56538
+           1       0.16      0.66      0.25      4965
+
+    accuracy                           0.69     61503
+   macro avg       0.56      0.67      0.53     61503
+weighted avg       0.89      0.69      0.76     61503
+
+
+───────────────────────────────────────────────────────────────────────────
+📊 RÉSUMÉ COMPARATIF DES PERFORMANCES
+───────────────────────────────────────────────────────────────────────────
+Métrique        |      Train |       Test |          Δ
+---------------------------------------------------------------------------
+ACCURACY        |     0.6867 |     0.6853 |    +0.0014
+PRECISION       |     0.1609 |     0.1565 |    +0.0044
+RECALL          |     0.6838 |     0.6604 |    +0.0234
+F1              |     0.2606 |     0.2531 |    +0.0075
+F2              |     0.4145 |     0.4017 |    +0.0127
+SPECIFICITE     |     0.6869 |     0.6875 |    -0.0005
+ROC_AUC         |     0.7488 |     0.7382 |    +0.0107
+MCC             |     0.2127 |     0.2000 |    +0.0128
+================================================================================
+
+📈   MLflow run de12515d...
+2026/02/26 01:52:11 WARNING mlflow.utils.environment: Failed to resolve installed pip version. ``pip`` will be added to conda.yaml environment spec without a version specifier.
+✅   ✓ Coefficients linéaires enregistrés
+🏃 View run logistic_regression_run at: http://localhost:5001/#/experiments/2/runs/de12515dd9d84824ae695895d0cf5c54
+🧪 View experiment at: http://localhost:5001/#/experiments/2
+
+============================================================================
+RAPPORT D'ENTRAÎNEMENT : logistic_regression
+============================================================================
+  ID du Run MLflow....: de12515dd9d84824ae695895d0cf5c54
+  Échantillons Train..: 246008
+  Échantillons Eval...: 61503
+  F1-Score (Eval).....: 0.2531
+  F2-Score (Recall++).: 0.4017
+  Indicateur Overfit..: 0.0127 (Basé sur F2)
+  Temps d'exécution...: 29.64 secondes
+============================================================================
+
+✅   ✓ logistic_regression — logué avec succès
+
+------------------------------------------------------------
+📊 [3/8]  DECISION_TREE
+ℹ️    Arbre simple — diagnostic de structure
+
+================================================================================
+🎯 EXPÉRIENCE #3 : decision_tree
+================================================================================
+
+🔄 Validation Croisée Stratifiée (5 plis)...
+   Résultats :
+   ACCURACY   → Train: 0.6293 (±0.0507) | CV: 0.6272 (±0.0508)
+   PRECISION  → Train: 0.1413 (±0.0108) | CV: 0.1396 (±0.0120)
+   RECALL     → Train: 0.6959 (±0.0635) | CV: 0.6888 (±0.0551)
+   F1         → Train: 0.2338 (±0.0099) | CV: 0.2312 (±0.0121)
+   F2         → Train: 0.3870 (±0.0042) | CV: 0.3829 (±0.0021)
+   ROC_AUC    → Train: 0.7175 (±0.0011) | CV: 0.7101 (±0.0036)
+   LOG_LOSS   → Train: 0.6163 (±0.0007) | CV: 0.6180 (±0.0017)
+
+🏋️  Entraînement sur 246008 échantillons...
+   ✅ Complété en 10.82s
+
+🔮 Génération des prédictions...
+   Train - Classe positive: 44.48%
+   Test  - Classe positive: 43.93%
+
+✅ Généralisation optimale (pas d'overfitting)
+
+──────────────────────────────────────────────────────────────────────
+📊 RAPPORT DE CLASSIFICATION (decision_tree)
+──────────────────────────────────────────────────────────────────────
+              precision    recall  f1-score   support
+
+           0       0.96      0.58      0.73     56538
+           1       0.13      0.71      0.22      4965
+
+    accuracy                           0.59     61503
+   macro avg       0.54      0.65      0.47     61503
+weighted avg       0.89      0.59      0.68     61503
+
+
+───────────────────────────────────────────────────────────────────────────
+📊 RÉSUMÉ COMPARATIF DES PERFORMANCES
+───────────────────────────────────────────────────────────────────────────
+Métrique        |      Train |       Test |          Δ
+---------------------------------------------------------------------------
+ACCURACY        |     0.5932 |     0.5941 |    -0.0009
+PRECISION       |     0.1335 |     0.1299 |    +0.0036
+RECALL          |     0.7353 |     0.7069 |    +0.0284
+F1              |     0.2259 |     0.2195 |    +0.0064
+F2              |     0.3866 |     0.3744 |    +0.0123
+SPECIFICITE     |     0.5807 |     0.5842 |    -0.0035
+ROC_AUC         |     0.7164 |     0.6999 |    +0.0165
+MCC             |     0.1733 |     0.1598 |    +0.0135
+================================================================================
+
+📈   MLflow run 7748e72f...
+2026/02/26 01:54:59 WARNING mlflow.utils.environment: Failed to resolve installed pip version. ``pip`` will be added to conda.yaml environment spec without a version specifier.
+✅   ✓ Feature Importance enregistrée
+🏃 View run decision_tree_run at: http://localhost:5001/#/experiments/2/runs/7748e72fc3f445a5a0c0e7af9af4e55f
+🧪 View experiment at: http://localhost:5001/#/experiments/2
+
+============================================================================
+RAPPORT D'ENTRAÎNEMENT : decision_tree
+============================================================================
+  ID du Run MLflow....: 7748e72fc3f445a5a0c0e7af9af4e55f
+  Échantillons Train..: 246008
+  Échantillons Eval...: 61503
+  F1-Score (Eval).....: 0.2195
+  F2-Score (Recall++).: 0.3744
+  Indicateur Overfit..: 0.0123 (Basé sur F2)
+  Temps d'exécution...: 10.82 secondes
+============================================================================
+
+✅   ✓ decision_tree — logué avec succès
+
+------------------------------------------------------------
+📊 [4/8]  RANDOM_FOREST
+ℹ️    Bagging — réduction de la variance
+
+================================================================================
+🎯 EXPÉRIENCE #4 : random_forest
+================================================================================
+
+🔄 Validation Croisée Stratifiée (5 plis)...
+   Résultats :
+   ACCURACY   → Train: 0.7425 (±0.0022) | CV: 0.7268 (±0.0017)
+   PRECISION  → Train: 0.1978 (±0.0010) | CV: 0.1665 (±0.0019)
+   RECALL     → Train: 0.7162 (±0.0030) | CV: 0.5950 (±0.0063)
+   F1         → Train: 0.3099 (±0.0011) | CV: 0.2602 (±0.0029)
+   F2         → Train: 0.4698 (±0.0007) | CV: 0.3928 (±0.0043)
+   ROC_AUC    → Train: 0.8103 (±0.0004) | CV: 0.7299 (±0.0045)
+   LOG_LOSS   → Train: 0.5650 (±0.0005) | CV: 0.5762 (±0.0008)
+
+🏋️  Entraînement sur 246008 échantillons...
+   ✅ Complété en 46.57s
+
+🔮 Génération des prédictions...
+   Train - Classe positive: 29.98%
+   Test  - Classe positive: 29.27%
+
+✅ Généralisation optimale (pas d'overfitting)
+
+──────────────────────────────────────────────────────────────────────
+📊 RAPPORT DE CLASSIFICATION (random_forest)
+──────────────────────────────────────────────────────────────────────
+              precision    recall  f1-score   support
+
+           0       0.95      0.73      0.83     56538
+           1       0.17      0.60      0.26      4965
+
+    accuracy                           0.72     61503
+   macro avg       0.56      0.67      0.54     61503
+weighted avg       0.89      0.72      0.78     61503
+
+
+───────────────────────────────────────────────────────────────────────────
+📊 RÉSUMÉ COMPARATIF DES PERFORMANCES
+───────────────────────────────────────────────────────────────────────────
+Métrique        |      Train |       Test |          Δ
+---------------------------------------------------------------------------
+ACCURACY        |     0.7342 |     0.7232 |    +0.0110
+PRECISION       |     0.1914 |     0.1651 |    +0.0263
+RECALL          |     0.7109 |     0.5988 |    +0.1121
+F1              |     0.3016 |     0.2589 |    +0.0428
+F2              |     0.4608 |     0.3926 |    +0.0682
+SPECIFICITE     |     0.7363 |     0.7341 |    +0.0022
+ROC_AUC         |     0.8015 |     0.7278 |    +0.0737
+MCC             |     0.2659 |     0.1993 |    +0.0666
+================================================================================
+
+📈   MLflow run d5ab8820...
+2026/02/26 02:01:30 WARNING mlflow.utils.environment: Failed to resolve installed pip version. ``pip`` will be added to conda.yaml environment spec without a version specifier.
+✅   ✓ Feature Importance enregistrée
+🏃 View run random_forest_run at: http://localhost:5001/#/experiments/2/runs/d5ab88204786438e9446a4abdc2c76a9
+🧪 View experiment at: http://localhost:5001/#/experiments/2
+
+============================================================================
+RAPPORT D'ENTRAÎNEMENT : random_forest
+============================================================================
+  ID du Run MLflow....: d5ab88204786438e9446a4abdc2c76a9
+  Échantillons Train..: 246008
+  Échantillons Eval...: 61503
+  F1-Score (Eval).....: 0.2589
+  F2-Score (Recall++).: 0.3926
+  Indicateur Overfit..: 0.0682 (Basé sur F2)
+  Temps d'exécution...: 46.57 secondes
+============================================================================
+
+✅   ✓ random_forest — logué avec succès
+
+------------------------------------------------------------
+📊 [5/8]  GRADIENT_BOOSTING
+ℹ️    Boosting standard — robuste mais sans poids natif
+
+================================================================================
+🎯 EXPÉRIENCE #5 : gradient_boosting
+================================================================================
+
+🔄 Validation Croisée Stratifiée (5 plis)...
+   Résultats :
+   ACCURACY   → Train: 0.9198 (±0.0001) | CV: 0.9194 (±0.0001)
+   PRECISION  → Train: 0.6988 (±0.0170) | CV: 0.5456 (±0.0523)
+   RECALL     → Train: 0.0112 (±0.0016) | CV: 0.0079 (±0.0005)
+   F1         → Train: 0.0220 (±0.0032) | CV: 0.0156 (±0.0009)
+   F2         → Train: 0.0139 (±0.0020) | CV: 0.0098 (±0.0006)
+   ROC_AUC    → Train: 0.7605 (±0.0011) | CV: 0.7487 (±0.0041)
+   LOG_LOSS   → Train: 0.2462 (±0.0002) | CV: 0.2498 (±0.0005)
+
+🏋️  Entraînement sur 246008 échantillons...
+   ✅ Complété en 588.27s
+
+🔮 Génération des prédictions...
+   Train - Classe positive: 0.11%
+   Test  - Classe positive: 0.12%
+
+✅ Généralisation optimale (pas d'overfitting)
+
+──────────────────────────────────────────────────────────────────────
+📊 RAPPORT DE CLASSIFICATION (gradient_boosting)
+──────────────────────────────────────────────────────────────────────
+              precision    recall  f1-score   support
+
+           0       0.92      1.00      0.96     56538
+           1       0.50      0.01      0.02      4965
+
+    accuracy                           0.92     61503
+   macro avg       0.71      0.50      0.49     61503
+weighted avg       0.89      0.92      0.88     61503
+
+
+───────────────────────────────────────────────────────────────────────────
+📊 RÉSUMÉ COMPARATIF DES PERFORMANCES
+───────────────────────────────────────────────────────────────────────────
+Métrique        |      Train |       Test |          Δ
+---------------------------------------------------------------------------
+ACCURACY        |     0.9198 |     0.9193 |    +0.0005
+PRECISION       |     0.7163 |     0.5000 |    +0.2163
+RECALL          |     0.0102 |     0.0077 |    +0.0025
+F1              |     0.0201 |     0.0151 |    +0.0050
+F2              |     0.0127 |     0.0095 |    +0.0031
+SPECIFICITE     |     0.9996 |     0.9993 |    +0.0003
+ROC_AUC         |     0.7591 |     0.7432 |    +0.0159
+MCC             |     0.0790 |     0.0541 |    +0.0249
+================================================================================
+
+📈   MLflow run 58ee9bba...
+2026/02/26 02:28:31 WARNING mlflow.utils.environment: Failed to resolve installed pip version. ``pip`` will be added to conda.yaml environment spec without a version specifier.
+✅   ✓ Feature Importance enregistrée
+🏃 View run gradient_boosting_run at: http://localhost:5001/#/experiments/2/runs/58ee9bba6274492aa47a7af105c31ea0
+🧪 View experiment at: http://localhost:5001/#/experiments/2
+
+============================================================================
+RAPPORT D'ENTRAÎNEMENT : gradient_boosting
+============================================================================
+  ID du Run MLflow....: 58ee9bba6274492aa47a7af105c31ea0
+  Échantillons Train..: 246008
+  Échantillons Eval...: 61503
+  F1-Score (Eval).....: 0.0151
+  F2-Score (Recall++).: 0.0095
+  Indicateur Overfit..: 0.0031 (Basé sur F2)
+  Temps d'exécution...: 588.27 secondes
+============================================================================
+
+✅   ✓ gradient_boosting — logué avec succès
+
+------------------------------------------------------------
+📊 [6/8]  XGBOOST
+ℹ️    XGBoost — calibré pour le déséquilibre
+
+================================================================================
+🎯 EXPÉRIENCE #6 : xgboost
+================================================================================
+
+🔄 Validation Croisée Stratifiée (5 plis)...
+   Résultats :
+   ACCURACY   → Train: 0.6972 (±0.0015) | CV: 0.6933 (±0.0022)
+   PRECISION  → Train: 0.1701 (±0.0009) | CV: 0.1640 (±0.0022)
+   RECALL     → Train: 0.7089 (±0.0009) | CV: 0.6832 (±0.0079)
+   F1         → Train: 0.2743 (±0.0012) | CV: 0.2646 (±0.0034)
+   F2         → Train: 0.4339 (±0.0013) | CV: 0.4184 (±0.0051)
+   ROC_AUC    → Train: 0.7756 (±0.0009) | CV: 0.7541 (±0.0038)
+   LOG_LOSS   → Train: 0.5752 (±0.0007) | CV: 0.5807 (±0.0017)
+
+🏋️  Entraînement sur 246008 échantillons...
+   ✅ Complété en 13.84s
+
+🔮 Génération des prédictions...
+   Train - Classe positive: 33.79%
+   Test  - Classe positive: 33.33%
+
+✅ Généralisation optimale (pas d'overfitting)
+
+──────────────────────────────────────────────────────────────────────
+📊 RAPPORT DE CLASSIFICATION (xgboost)
+──────────────────────────────────────────────────────────────────────
+              precision    recall  f1-score   support
+
+           0       0.96      0.70      0.81     56538
+           1       0.16      0.67      0.26      4965
+
+    accuracy                           0.69     61503
+   macro avg       0.56      0.68      0.53     61503
+weighted avg       0.90      0.69      0.76     61503
+
+
+───────────────────────────────────────────────────────────────────────────
+📊 RÉSUMÉ COMPARATIF DES PERFORMANCES
+───────────────────────────────────────────────────────────────────────────
+Métrique        |      Train |       Test |          Δ
+---------------------------------------------------------------------------
+ACCURACY        |     0.6954 |     0.6946 |    +0.0008
+PRECISION       |     0.1687 |     0.1630 |    +0.0057
+RECALL          |     0.7059 |     0.6729 |    +0.0330
+F1              |     0.2723 |     0.2624 |    +0.0099
+F2              |     0.4312 |     0.4139 |    +0.0173
+SPECIFICITE     |     0.6944 |     0.6965 |    -0.0021
+ROC_AUC         |     0.7727 |     0.7485 |    +0.0242
+MCC             |     0.2306 |     0.2135 |    +0.0171
+================================================================================
+
+📈   MLflow run ef659392...
+2026/02/26 02:32:17 WARNING mlflow.utils.environment: Failed to resolve installed pip version. ``pip`` will be added to conda.yaml environment spec without a version specifier.
+✅   ✓ Feature Importance enregistrée
+🏃 View run xgboost_run at: http://localhost:5001/#/experiments/2/runs/ef659392234f499fa8440d659fad972c
+🧪 View experiment at: http://localhost:5001/#/experiments/2
+
+============================================================================
+RAPPORT D'ENTRAÎNEMENT : xgboost
+============================================================================
+  ID du Run MLflow....: ef659392234f499fa8440d659fad972c
+  Échantillons Train..: 246008
+  Échantillons Eval...: 61503
+  F1-Score (Eval).....: 0.2624
+  F2-Score (Recall++).: 0.4139
+  Indicateur Overfit..: 0.0173 (Basé sur F2)
+  Temps d'exécution...: 13.84 secondes
+============================================================================
+
+✅   ✓ xgboost — logué avec succès
+
+------------------------------------------------------------
+📊 [7/8]  LIGHTGBM
+ℹ️    LightGBM — haute performance, Recall prioritaire
+
+================================================================================
+🎯 EXPÉRIENCE #7 : lightgbm
+================================================================================
+
+🔄 Validation Croisée Stratifiée (5 plis)...
+   Résultats :
+   ACCURACY   → Train: 0.7124 (±0.0008) | CV: 0.7046 (±0.0024)
+   PRECISION  → Train: 0.1798 (±0.0006) | CV: 0.1675 (±0.0022)
+   RECALL     → Train: 0.7197 (±0.0022) | CV: 0.6697 (±0.0062)
+   F1         → Train: 0.2878 (±0.0009) | CV: 0.2679 (±0.0034)
+   F2         → Train: 0.4497 (±0.0013) | CV: 0.4186 (±0.0047)
+   ROC_AUC    → Train: 0.7936 (±0.0009) | CV: 0.7546 (±0.0034)
+   LOG_LOSS   → Train: 0.5569 (±0.0007) | CV: 0.5671 (±0.0019)
+
+🏋️  Entraînement sur 246008 échantillons...
+   ✅ Complété en 12.53s
+
+🔮 Génération des prédictions...
+   Train - Classe positive: 32.56%
+   Test  - Classe positive: 32.18%
+
+✅ Généralisation optimale (pas d'overfitting)
+
+──────────────────────────────────────────────────────────────────────
+📊 RAPPORT DE CLASSIFICATION (lightgbm)
+──────────────────────────────────────────────────────────────────────
+              precision    recall  f1-score   support
+
+           0       0.96      0.71      0.81     56538
+           1       0.17      0.66      0.26      4965
+
+    accuracy                           0.70     61503
+   macro avg       0.56      0.68      0.54     61503
+weighted avg       0.90      0.70      0.77     61503
+
+
+───────────────────────────────────────────────────────────────────────────
+📊 RÉSUMÉ COMPARATIF DES PERFORMANCES
+───────────────────────────────────────────────────────────────────────────
+Métrique        |      Train |       Test |          Δ
+---------------------------------------------------------------------------
+ACCURACY        |     0.7091 |     0.7041 |    +0.0051
+PRECISION       |     0.1773 |     0.1656 |    +0.0117
+RECALL          |     0.7152 |     0.6600 |    +0.0552
+F1              |     0.2842 |     0.2648 |    +0.0194
+F2              |     0.4451 |     0.4132 |    +0.0319
+SPECIFICITE     |     0.7086 |     0.7079 |    +0.0007
+ROC_AUC         |     0.7878 |     0.7487 |    +0.0391
+MCC             |     0.2464 |     0.2146 |    +0.0318
+================================================================================
+
+📈   MLflow run 300dcf9a...
+2026/02/26 02:36:13 WARNING mlflow.utils.environment: Failed to resolve installed pip version. ``pip`` will be added to conda.yaml environment spec without a version specifier.
+✅   ✓ Feature Importance enregistrée
+🏃 View run lightgbm_run at: http://localhost:5001/#/experiments/2/runs/300dcf9a0f1d49e7b3d1d33869546f7d
+🧪 View experiment at: http://localhost:5001/#/experiments/2
+
+============================================================================
+RAPPORT D'ENTRAÎNEMENT : lightgbm
+============================================================================
+  ID du Run MLflow....: 300dcf9a0f1d49e7b3d1d33869546f7d
+  Échantillons Train..: 246008
+  Échantillons Eval...: 61503
+  F1-Score (Eval).....: 0.2648
+  F2-Score (Recall++).: 0.4132
+  Indicateur Overfit..: 0.0319 (Basé sur F2)
+  Temps d'exécution...: 12.53 secondes
+============================================================================
+
+✅   ✓ lightgbm — logué avec succès
+
+------------------------------------------------------------
+📊 [8/8]  MLP
+ℹ️    MLP avec SMOTE — Pipeline robuste au déséquilibre
+
+================================================================================
+🎯 EXPÉRIENCE #8 : mlp
+================================================================================
+
+🔄 Validation Croisée Stratifiée (5 plis)...
+   Résultats :
+   ACCURACY   → Train: 0.9146 (±0.0022) | CV: 0.8998 (±0.0035)
+   PRECISION  → Train: 0.4345 (±0.0243) | CV: 0.2297 (±0.0117)
+   RECALL     → Train: 0.1850 (±0.0193) | CV: 0.1016 (±0.0116)
+   F1         → Train: 0.2585 (±0.0180) | CV: 0.1401 (±0.0100)
+   F2         → Train: 0.2087 (±0.0194) | CV: 0.1141 (±0.0115)
+   ROC_AUC    → Train: 0.8084 (±0.0071) | CV: 0.6829 (±0.0066)
+   LOG_LOSS   → Train: 0.2382 (±0.0046) | CV: 0.3005 (±0.0067)
+
+🏋️  Entraînement sur 246008 échantillons...
+   ✅ Complété en 297.80s
+
+🔮 Génération des prédictions...
+   Train - Classe positive: 2.07%
+   Test  - Classe positive: 2.18%
+
+✅ Généralisation optimale (pas d'overfitting)
+
+──────────────────────────────────────────────────────────────────────
+📊 RAPPORT DE CLASSIFICATION (mlp)
+──────────────────────────────────────────────────────────────────────
+              precision    recall  f1-score   support
+
+           0       0.92      0.98      0.95     56538
+           1       0.28      0.08      0.12      4965
+
+    accuracy                           0.91     61503
+   macro avg       0.60      0.53      0.54     61503
+weighted avg       0.87      0.91      0.89     61503
+
+
+───────────────────────────────────────────────────────────────────────────
+📊 RÉSUMÉ COMPARATIF DES PERFORMANCES
+───────────────────────────────────────────────────────────────────────────
+Métrique        |      Train |       Test |          Δ
+---------------------------------------------------------------------------
+ACCURACY        |     0.9181 |     0.9098 |    +0.0083
+PRECISION       |     0.4726 |     0.2839 |    +0.1887
+RECALL          |     0.1213 |     0.0767 |    +0.0446
+F1              |     0.1931 |     0.1208 |    +0.0722
+F2              |     0.1425 |     0.0899 |    +0.0526
+SPECIFICITE     |     0.9881 |     0.9830 |    +0.0051
+ROC_AUC         |     0.7976 |     0.7075 |    +0.0901
+MCC             |     0.2093 |     0.1114 |    +0.0979
+================================================================================
+
+📈   MLflow run 06b0ebdf...
+2026/02/26 02:50:09 WARNING mlflow.utils.environment: Failed to resolve installed pip version. ``pip`` will be added to conda.yaml environment spec without a version specifier.
+ℹ️    ⚠️  Le modèle ne supporte pas l'importance des variables
+🏃 View run mlp_run at: http://localhost:5001/#/experiments/2/runs/06b0ebdf15af4f7bb7fa079df4ab6aef
+🧪 View experiment at: http://localhost:5001/#/experiments/2
+
+============================================================================
+RAPPORT D'ENTRAÎNEMENT : mlp
+============================================================================
+  ID du Run MLflow....: 06b0ebdf15af4f7bb7fa079df4ab6aef
+  Échantillons Train..: 246008
+  Échantillons Eval...: 61503
+  F1-Score (Eval).....: 0.1208
+  F2-Score (Recall++).: 0.0899
+  Indicateur Overfit..: 0.0526 (Basé sur F2)
+  Temps d'exécution...: 297.80 secondes
+============================================================================
+
+✅   ✓ mlp — logué avec succès
+
+############################################################################
+📊 STEP 5. Comparaison des modèles ...
+
+==============================================================================================================
+COMPARAISON DES MODÈLES — Phase 3   (trié par F2-Score eval)
+==============================================================================================================
+Rang              Modèle  AUC-ROC(eval)  F2(eval)  F1(eval)  Recall(eval)  Precision(eval)  MCC(eval)  F1 CV mean  F1 CV std  Overfit ΔF1  Train (s) Overfitting MLflow Run
+   🏆             xgboost         0.7485    0.4139    0.2624        0.6729           0.1630     0.2135      0.2646     0.0034       0.0099      13.84           ✅   ef659392
+                lightgbm         0.7487    0.4132    0.2648        0.6600           0.1656     0.2146      0.2679     0.0034       0.0194      12.53           ✅   300dcf9a
+     logistic_regression         0.7382    0.4017    0.2531        0.6604           0.1565     0.2000      0.2587     0.0037       0.0075      29.64           ✅   de12515d
+           random_forest         0.7278    0.3926    0.2589        0.5988           0.1651     0.1993      0.2602     0.0029       0.0428      46.57           ✅   d5ab8820
+           decision_tree         0.6999    0.3744    0.2195        0.7069           0.1299     0.1598      0.2312     0.0121       0.0064      10.82           ✅   7748e72f
+                     mlp         0.7075    0.0899    0.1208        0.0767           0.2839     0.1114      0.1401     0.0100       0.0722     297.80           ✅   06b0ebdf
+          dummy_baseline         0.5016    0.0830    0.0832        0.0828           0.0837     0.0032      0.0822     0.0054      -0.0025       0.06           ✅   6dc5b080
+       gradient_boosting         0.7432    0.0095    0.0151        0.0077           0.5000     0.0541      0.0156     0.0009       0.0050     588.27           ✅   58ee9bba
+==============================================================================================================
+✅ 🏆 Champion : xgboost  (F2=0.4139  AUC-ROC=0.7485)
+ℹ️  ⮕  Phase 4 : Optuna pour optimiser les hyperparamètres du champion.
+
+############################################################################
+📊 STEP 6. Sauvegarde des modèles ...
+ℹ️    ✓ xgboost                        → xgboost_model.joblib
+✅ 1 modèle(s) dans C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\models/
+
+############################################################################
+📊 STEP 7. Optimisation du seuil pour : xgboost
+✅ Seuil optimal trouvé..: 0.489
+ℹ️  Nouveau F2-Score.....: 0.4147
+
+############################################################################
+📊 STEP 8. Enregistrement champion [xgboost] dans PostgreSQL ...
+✅ ✅ Champion enregistré en DB (Version: v_20260226_025206)
+
+============================================================================
+✅ PHASE 3 TERMINÉE AVEC SUCCÈS
+============================================================================
+  Durée totale........: 1:07:55 (H:M:S)
+  Modèles entraînés...: 8
+  Champion............: xgboost
+  MLflow UI...........: http://localhost:5001
+  Expérience..........: Smart_Credit_Scoring
+
+  ⮕  Suite : Phase 4 — Optimisation hyperparamètres
+============================================================================
+process_begin: CreateProcess(NULL, dirname C:/Users/Public/IAE_DELL/pra_dell/m6_ocr/Makefile, ...) failed.
+Makefile:7: pipe: No error
+process_begin: CreateProcess(NULL, which conda, ...) failed.
+Makefile:13: pipe: No error
+­ƒÜÇ Running Phase 4: Hyperparameter Tuning ...
+
+============================================================================
+🚀 PHASE 4 — OPTIMISATION HYPERPARAMÈTRES + SEUIL MÉTIER
+   Projet : Prêt à Dépenser — Home Credit Default Risk
+============================================================================
+
+################################################################################
+📊 Configuration MLflow Phase 4 ...
+ℹ️  Expérience existante : Smart_Credit_Scoring
+
+################################################################################
+📊 STEP 1. Chargement du champion Phase 3 ...
+ℹ️  Champion détecté automatiquement : decision_tree
+✅ Champion : decision_tree (F2 Phase3=0.38746908491343773)
+ℹ️  Classe sklearn : DecisionTreeClassifier
+
+################################################################################
+📊 STEP 2. Chargement des données (From Database)...
+ℹ️  Lecture des tables ml_X_train et ml_y_train ...
+✅ Tables SQL chargées en 91.5s — 307,511 lignes × 192 colonnes
+✅ Split : X_train=(246008, 190)  X_eval=(61503, 190)  défauts=8.1%
+
+################################################################################
+🔲 STEP 3. GRIDSEARCHCV — Optimisation exhaustive ...
+ℹ️  Grille : 24 combinaisons × 5 plis = 120 fits
+✅ GridSearch terminé en 467.1s — CV F2=0.3895  Eval F2=0.3799
+ℹ️  Meilleurs params : {'max_depth': 8, 'min_samples_leaf': 100, 'min_samples_split': 30}
+ℹ️  cv_results GridSearch → phase4_gs_cv_results_decision_tree.csv
+📈   MLflow run a35954ac... [gridsearch]
+2026/02/26 03:02:14 WARNING mlflow.utils.environment: Failed to resolve installed pip version. ``pip`` will be added to conda.yaml environment spec without a version specifier.
+🏃 View run decision_tree_gridsearch_opt at: http://localhost:5001/#/experiments/2/runs/a35954ac0b0e47dba612245449bfe37e
+🧪 View experiment at: http://localhost:5001/#/experiments/2
+
+################################################################################
+🔬 STEP 4. OPTUNA — Optimisation bayésienne (TPE) ...
+Best trial: 40. Best value: 0.390301: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 50/50 [41:21<00:00, 49.64s/it]
+✅ Optuna terminé en 2481.9s — 50 trials complets, 0 prunés
+✅ Meilleur trial : CV F2=0.3903  Eval F2=0.3815
+ℹ️  Meilleurs params : {'max_depth': 8, 'min_samples_leaf': 164, 'min_samples_split': 200}
+ℹ️  Study Optuna sauvegardé → phase4_optuna_study_decision_tree.pkl
+📈   MLflow run 9f4152c6... [optuna]
+2026/02/26 03:46:29 WARNING mlflow.utils.environment: Failed to resolve installed pip version. ``pip`` will be added to conda.yaml environment spec without a version specifier.
+🏃 View run decision_tree_optuna_opt at: http://localhost:5001/#/experiments/2/runs/9f4152c6e0bc42d3b1c2802406a9f95c
+🧪 View experiment at: http://localhost:5001/#/experiments/2
+
+################################################################################
+📊 STEP 5. Comparaison GridSearch vs Optuna ...
+
+============================================================================
+COMPARAISON MOTEURS D'OPTIMISATION — Phase 4
+============================================================================
+    Moteur  CV F2  Eval F2  Eval AUC  Recall  Precision  Temps (s) Gagnant
+    optuna 0.3903   0.3815    0.7115  0.6479     0.1442     2481.9       🏆
+gridsearch 0.3895   0.3799    0.7099  0.6427     0.1442      467.1
+============================================================================
+✅ 🏆 Gagnant : optuna  (F2 eval=0.3815)
+
+################################################################################
+📊 STEP 6. Optimisation du seuil métier (coût FN=5× > FP=1×) ...
+✅ Seuil optimal   : 0.709
+ℹ️  F2 au seuil opt.: 0.2561
+ℹ️  Recall au seuil.: 0.2636
+✅ Coût métier : 27825 → 22672 (économie 5153 unités)
+ℹ️  Courbe seuil → phase4_threshold_curve.csv
+📈 MLflow run 9f4152c6 mis à jour : optimal_threshold=0.709  threshold_f2=0.2561  threshold_recall=0.2636
+
+################################################################################
+📊 STEP 5b. Refit final sur 100% des données (train + eval) ...
+ℹ️  Données fusionnées : 307,511 lignes (train=246,008 + eval=61,503)  défauts=8.07%
+✅ Refit terminé en 14.7s sur 307,511 lignes ✓
+✅ Le modèle champion est prêt pour la Phase 5 (scoring Kaggle + API).
+
+################################################################################
+📊 STEP 7. Sauvegarde du modèle optimisé ...
+✅ Modèle → phase4_best_model.joblib
+ℹ️  Metadata → phase4_best_model_metadata.json
+📈 Artefacts finaux (joblib + JSON) loggués sur run MLflow 9f4152c6
+
+################################################################################
+📊 STEP 8. Enregistrement dans PostgreSQL model_versions ...
+✅ Enregistré en DB — Version : v_phase4_20260226_034902
+
+################################################################################
+📊 STEP 9. Enregistrement des benchmarks de monitoring...
+✅ 5 métricas de referencia guardadas con éxito.
+
+============================================================================
+✅ PHASE 4 TERMINÉE AVEC SUCCÈS
+============================================================================
+  Durée totale...........: 0:56:41 (H:M:S)
+  Champion Phase 3.......: decision_tree
+  Moteur gagnant.........: optuna
+  Meilleurs params.......: {'max_depth': 8, 'min_samples_leaf': 164, 'min_samples_split': 200}
+  F2 Phase 3 (baseline)..: 0.38746908491343773
+  F2 Phase 4 (optimisé)..: 0.3799261816882962
+  Seuil optimal..........: 0.709  (défaut : 0.500)
+  MLflow UI..............: http://localhost:5001
+  Expérience.............: Smart_Credit_Scoring
+
+  ⮕  Suite : Phase 5 — TODO ...
+============================================================================
+PS C:\Users\Public\IAE_DELL\pra_dell\m6_ocr>

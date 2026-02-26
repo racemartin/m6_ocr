@@ -1,0 +1,127 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FAFAFA
+skinparam ActivityBackgroundColor #EBF4FB
+skinparam ActivityBorderColor #2E86AB
+skinparam ArrowColor #2E86AB
+skinparam DiamondBackgroundColor #FFF3CD
+skinparam DiamondBorderColor #F4A261
+skinparam NoteBackgroundColor #E8F8F5
+skinparam NoteBorderColor #3BB273
+
+title **Phase 3 · Activity (2/2) — Comparaison → Sauvegarde → Registre**
+
+start
+
+partition "STEP 5 · Comparaison & Champion" {
+  :Construire tableau comparatif :
+  - Métriques : AUC-ROC, F1, F2, Recall
+  - Business : Precision, Overfit, Temps;
+
+  :Trier par **F2-Score eval** :
+  (beta=2 → Recall pèse 2× plus que Precision)
+  Note : 1 FN est bien pire qu'un 1 FP;
+
+  :Définir le gagnant :
+  `best_model_name = df.loc[0, 'Modèle']`;
+
+  :Marquage MLflow :
+  - mlflow_client.set_tag(id, "best_model", "true")
+  - mlflow_client.set_tag(id, "phase", "phase3_champion");
+
+  note right 
+    🏆 Champion sélectionné 
+    sur F2 eval set (holdout)
+  end note
+}
+
+partition "STEP 6 · Sauvegarde Joblib + JSON" {
+  if (--save-all ?) then (oui)
+    :Sauvegarder tous les modèles;
+  else (non)
+    :Sauvegarder champion uniquement;
+  endif
+
+  :Pour chaque modèle à sauvegarder :
+  1. joblib.dump(modele) → **models/<nom>_model.joblib**
+  2. json.dump(metadata) → **models/<nom>_metadata.json**;
+
+  :Contenu Metadata JSON :
+  - model_name, model_class, is_best
+  - train_metrics, eval_metrics
+  - cv_f1_mean/std, cv_auc_mean/std
+  - feature_names (300 noms)
+  - n_features, train_samples, mlflow_run_id
+  - model_path, saved_at;
+
+  note right 
+    is_best=True → lu par Phase 4 
+    pour charger le champion
+  end note
+}
+
+partition "STEP 7 · Seuil Optimal (Threshold)" {
+  :Récupérer y_test_proba du champion
+  (probabilités sur X_eval);
+  
+  :Balayage linspace(0.05, 0.80, 100) :
+  - Pour chaque seuil t :
+    y_pred = (proba >= t)
+    f2 = fbeta_score(beta=2);
+
+  :optimal_threshold = t où F2 est max
+  → stocker dans res["optimal_threshold"];
+
+  note right
+    Seuil 0.5 inadapté aux 8% défauts
+    → souvent optimal autour 0.30-0.40
+    Phase 4 raffinera avec COUT métier
+  end note
+}
+
+partition "STEP 8 · Registre PostgreSQL" {
+  if (DB_AVAILABLE ?) then (oui)
+    :version = "v_YYYYMMDD_HHMMSS";
+    :INSERT INTO model_versions :
+    - model_name, version, mlflow_run_id
+    - algorithm, hyperparameters (JSONB)
+    - metrics (JSONB), status="trained"
+    - model_path, metadata_path;
+    note right 
+        Registre persistant
+        Traçabilité complète
+        Versioning par timestamp
+    end note
+  else (non)
+    :WARNING → Ignoré;
+  endif
+}
+
+:Résumé Final :
+- Durée totale H:M:S
+- N modèles entraînés
+- Champion + F2 + AUC
+- MLflow URI + Expérience;
+
+:return pipeline {
+  .results (8 modèles)
+  .best_model_name
+  .mlflow_runs
+  .saved_model_paths
+};
+
+stop
+
+legend right
+  |= Artefacts produits |
+  | models/<nom>_model.joblib (champion) |
+  | models/<nom>_metadata.json (champion) |
+  | models/*_confusion_matrix.txt |
+  | models/*_feature_importance.csv |
+  | mlruns/ (MLflow tracking) |
+  | PostgreSQL.model_versions (1 ligne) |
+  ──────────────────────────────────────────
+  ⮕  Suite : phase4_hyperparameter_tuning
+endlegend
+
+@enduml

@@ -8,7 +8,6 @@ Initiez-vous au MLOps (partie 1/2) MLflow Gestion du cycle de vie des modèles
 Construire et optimiser un modèle de classification binaire suivant le cycle de vie avec MLFlow
 
 
-
 ## 🛠️ Technologies (Complété)
 
 * **Python 3.12+** : Langage de programmation principal choisi pour son écosystème mature en Data Science.
@@ -42,10 +41,129 @@ uv run python -c "import pandas, fastapi, mlflow; print('✅ Environnement prêt
 ## ⚙️ Configuration
 
 ```bash
+# -----------------------------------------------------------------------------
 # Créer le fichier d'environnement à partir du template
 cp .env.example .env
 
+# -----------------------------------------------------------------------------
+# 2. Redemarrer les services a travers de Docker
+docker compose up -d postgres mlflow pgadmin
+
+# verification des services 
+docker ps
+CONTAINER ID   IMAGE                           COMMAND                  CREATED       STATUS        PORTS                                         NAMES
+e0cdeb4de8bd   dpage/pgadmin4                  "/entrypoint.sh"         4 hours ago   Up 2 hours   0.0.0.0:8088->80/tcp                          pgadmin_service
+bece6dbc93ff   ghcr.io/mlflow/mlflow:v2.16.0   "/bin/sh -c ' pip in…"   4 hours ago   Up 2 hours   0.0.0.0:5001->5000/tcp, [::]:5001->5000/tcp   m6_ocr-mlflow-1
+04030bb6618f   postgres:15                     "docker-entrypoint.s…"   4 hours ago   Up 2 hours   0.0.0.0:5433->5432/tcp                        postgres_db
+
+# -----------------------------------------------------------------------------
 # Note : Assurez-vous que DATABASE_URL pointe vers votre base SQLite/PostgreSQL
+# 3. Initialiser l'infrastructure (Base de données). Une sole fois.
+# C'est ici que l'on crée les tables 'vides'
+
+# Avec l'aplication "postgres"
+# psql -U postgres -f scripts/database/create_db_infrastructure_schema.sql
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -f scripts/database/create_db_infrastructure_schema.sql
+
+# Avec un script Python
+uv run python scripts/database/create_db_infrastructure_schema.py
+```
+
+## 🚀 Flux de Travail (Pipeline de Données)
+
+**Important :** Vous devez impérativement exécuter ces phases dans l'ordre pour générer les artefacts nécessaires aux services.
+
+```bash
+# Phase 1 :  Analyse Exploratoire (Nettoyage et Préparation)
+make phase1_1
+make phase1_2
+
+# Phase 2 : Feature Engineering (Preprocessing)
+make phase2
+
+# Phase 3 : Enregistrer Expérimentations dans MLFlow
+# Options pour la phase 3 (edition de src/pipelines/phase2_feature_engineering.py): 
+# * Aller plus vite: DEBUG_MODE = True, DEBUG_LIMIT = 10000 )
+# * Utiliser touts les echantillons: DEBUG_MODE = False
+make phase3
+
+# Phase 4 :  Optimisation hyperparamètres
+make phase4
+
+# Lancer l'interface utilisateur MLflow pour suivre vos expérimentations et métriques
+# (Accessible par défaut sur le port 5001)
+http://localhost:5001/
+
+# Démarrer le tableau de bord Optuna pour visualiser l'optimisation des hyperparamètres
+# (Analyse en temps réel de la recherche bayésienne et du pruning)
+uv run python srv_optuna_monitor.py
+
+# Accéder à l'interface graphique d'Optuna pour comparer les performances des essais
+# (Visualisation des courbes d'apprentissage et de l'importance des paramètres)
+http://localhost:8082/
+
+```
+
+
+## 🧪 Tests & Santé du Système (Phase 3 Focus)
+
+Cette suite de tests garantit que le passage du **Feature Engineering** à l'**Entraînement** est robuste, sans fuite de données (*Data Leakage*) et avec une traçabilité totale.
+
+| Fichier de Test (.py) | Composant Cible | Type de Validation | Focus MLOps |
+| --- | --- | --- | --- |
+| `test_smoke.py` | **Environnement** | Test de "fumée" rapide | Vérification des imports et du venv |
+| `test_03_database.py` | **Infrastructure DB** | Connexion et schémas SQL | Disponibilité de PostgreSQL |
+| `test_phase3_database.py` | **Data Access Layer** | Lecture des vues agrégées | Intégrité des 52 colonnes calculées |
+| `test_phase3_mlflow.py` | **Tracking Server** | Connexion et logging d'artefacts | Enregistrement du `preprocessor.pkl` |
+| `test_phase3_pipeline.py` | **Workflow End-to-End** | Fit / Transform du Pipeline | Absence de `NaN` et alignement colonnes |
+| `test_phase3_models.py` | **ML Logic** | Entraînement et prédictions | Calcul du F2-Score et Coût Métier |
+| `conftest.py` | **Test Fixtures** | Configuration globale des tests | Mocking des données et moteurs SQL |
+
+---
+
+## 🚀 Exemples d'Exécution avec `uv`
+
+Comme pour les phases de données, nous utilisons `uv` pour garantir que les tests s'exécutent dans l'environnement isolé du projet.
+
+### 1. Tests de Santé Globale
+
+```bash
+# Lancer TOUS les tests pour vérifier la santé du projet
+uv run pytest
+
+# Lancer uniquement les tests de "fumée" (vérification rapide)
+uv run pytest tests/test_smoke.py -v
+
+```
+
+### 2. Validation de l'Infrastructure et du Tracking
+
+```bash
+# Vérifier que le pipeline peut communiquer avec MLflow
+uv run pytest tests/test_phase3_mlflow.py -s
+
+# Valider l'accès aux données dans PostgreSQL
+uv run pytest tests/test_phase3_database.py
+
+```
+
+### 3. Tests de Logique de Pipeline (Crucial)
+
+```bash
+# Vérifier la transformation des données et l'imputation (le fameux fix du log1p)
+uv run pytest tests/test_phase3_pipeline.py -v
+
+# Tester l'entraînement des modèles et le calcul des métriques métier
+uv run pytest tests/test_phase3_models.py
+
+```
+
+### 4. Mode Débogage 
+
+```bash
+# Lancer un test spécifique avec affichage des logs et arrêt au premier échec
+uv run pytest -x -s tests/test_phase3_pipeline.py
+
 ```
 
 
@@ -56,31 +174,6 @@ cp .env.example .env
 * **`FastAPI` + `Pydantic**` : Sélectionné pour sa performance asynchrone et la validation rigoureuse des données entrantes via des schémas de données stricts (Data Integrity), évitant les erreurs de modèle dues à des données corrompues ou mal formatées.
 * **`MLflow` + `PostgreSQL**` : Implémenté pour assurer le tracking systématique des expérimentations et le versioning des modèles. L'utilisation de PostgreSQL comme backend garantit la persistance et l'intégrité des métadonnées de l'entraînement à long terme.
 * **`ydata-profiling`** : Implémenté pour automatiser l'analyse exploratoire (EDA) de manière exhaustive, permettant de détecter instantanément les valeurs manquantes, les corrélations et les dérives de données (Data Drift) avant l'entraînement.
-
-
-
-## 📚 Documentation
-
-### Steps realized during Instalation
-
-1. [Étape 1 : Initialisation et Structure Cookiecutter](docs/installation/01_Cookiecutter.md)
-2. [Étape 2 : Configuration du pyproject.toml](docs/installation/02_pyproject.toml.md)
-3. [Étape 3 : Gestion de l'Environnement Virtuel (uv)](docs/installation/02_pyproject.toml.md)
-4. [Étape 4 : Database PostgreSQL & Configuration](docs/installation/03_PostgreSQL_Database.md)
-
-
-### Prochainement
-- [Guide d'utilisation](docs/usage.md)
-
-
-
-## 🏗️ Architecture
-
-
-
-### Notebooks Importants (Ordre d'implémentation)
-
-
 
 
 Project Organization

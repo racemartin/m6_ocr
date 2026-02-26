@@ -1,0 +1,121 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FAFAFA
+skinparam ParticipantBackgroundColor #EBF4FB
+skinparam ParticipantBorderColor #2E86AB
+skinparam SequenceArrowColor #2E86AB
+skinparam NoteBackgroundColor #E8F8F5
+skinparam NoteBorderColor #1ABC9C
+skinparam SequenceDividerBackgroundColor #D5E8D4
+skinparam SequenceDividerBorderColor #82B366
+
+title **Phase 3 · Séquence (2/2) — Comparaison → Sauvegarde → Registre**
+
+actor "Dev" as DEV
+
+box "Python Process" #EBF4FB
+  participant "Phase3\nPipeline" as P3
+end box
+
+box "Filesystem" #F0FFF4
+  participant "models/" as FM
+end box
+
+box "Services" #FFF8E8
+  participant "PostgreSQL\n:5432" as PG
+  participant "MLflow\n:5001" as MLF
+end box
+
+== STEP 5 · Comparaison & Sélection Champion ==
+P3  -> P3  : Tableau trié par F2-Score eval :
+note right of P3
+  Rang | Modèle           | F2    | AUC   | Recall | Overfit
+  ──────────────────────────────────────────────────────────
+  🏆   | lightgbm         | 0.621 | 0.823 | 0.714  | 0.012
+       | xgboost          | 0.608 | 0.810 | 0.701  | 0.018
+       | random_forest    | 0.571 | 0.789 | 0.668  | 0.025
+       | gradient_boost   | 0.548 | 0.771 | 0.645  | 0.031
+       | mlp+smote        | 0.522 | 0.752 | 0.621  | 0.029
+       | logistic         | 0.498 | 0.731 | 0.603  | 0.008
+       | decision_tree    | 0.441 | 0.699 | 0.571  | 0.041
+       | dummy_baseline   | 0.089 | 0.501 | 0.104  | 0.000
+end note
+
+P3  -> MLF : set_tag(run_id_lgbm, "best_model", "true")\nset_tag(run_id_lgbm, "phase", "phase3_champion")
+
+== STEP 6 · Sauvegarde Joblib + JSON ==
+P3  -> FM  : joblib.dump(lgbm_model)\n→ **lightgbm_model.joblib**
+P3  -> FM  : json.dump(metadata)\n→ **lightgbm_metadata.json**
+note over FM
+  {
+    model_name: "lightgbm"
+    model_class: "LGBMClassifier"
+    is_best: true
+    train_metrics: {f1:0.633, f2:0.633, auc:0.835}
+    eval_metrics:  {f1:0.608, f2:0.621, auc:0.823}
+    cv_f1_mean: 0.605  cv_f1_std: 0.011
+    cv_auc_mean: 0.819 cv_auc_std: 0.008
+    feature_names: [300 noms de colonnes]
+    n_features: 300
+    train_samples: 192428
+    eval_samples:  48107
+    target_rate: 0.0807
+    mlflow_run_id: "abc123..."
+    model_path: ".../lightgbm_model.joblib"
+    saved_at: "2026-02-24T..."
+  }
+end note
+
+== STEP 7 · Seuil Optimal ==
+P3  -> P3  : y_proba = results["predictions"]["y_test_proba"]
+P3  -> P3  : linspace(0.05, 0.80, 100)\nPour t : fbeta_score(y_eval, pred>=t, beta=2)
+P3  -> P3  : optimal_threshold = t_max_f2\n→ ex. 0.35
+note right of P3 : Seuil 0.5 inadapté
+classes déséquilibrées
+Phase 4 affinera avec COUT métier
+
+== STEP 8 · Registre PostgreSQL ==
+P3  -> PG  : INSERT INTO model_versions (\n  model_name = "lightgbm"\n  version    = "v_20260224_143201"\n  mlflow_run_id = "abc123..."\n  algorithm  = "LGBMClassifier"\n  hyperparameters = {n_estimators:200...} JSONB\n  metrics = {f2:0.621, auc:0.823...} JSONB\n  model_path = ".../lightgbm_model.joblib"\n  status = "trained"\n)
+PG --> P3  : INSERT OK ✅
+
+== Résumé Artefacts ==
+note over FM
+  **models/**
+  lightgbm_model.joblib         ← champion
+  lightgbm_metadata.json        ← is_best=true
+  lightgbm_confusion_matrix.txt
+  lightgbm_feature_importance.csv
+  (+ fichiers des 7 autres modèles si --save-all)
+end note
+
+note over MLF
+  **MLflow Expérience : Smart_Credit_Scoring**
+  8 runs (1 par modèle) avec :
+  Tags    : model_name, best_model, phase3
+  Params  : model_*, cv_folds, n_features...
+  Metrics : train/eval/cv F1, F2, AUC
+            overfitting_f2, train_time_s
+  Files   : model/ (sklearn), confusion .txt
+            feature_importance .csv
+end note
+
+note over PG
+  **PostgreSQL.model_versions**
+  1 ligne insérée :
+  version = "v_20260224_143201"
+  status  = "trained"
+  algorithm = "LGBMClassifier"
+  optimal_threshold = NULL
+  (sera mis à jour en Phase 4)
+end note
+
+DEV <-- P3 : pipeline {\n  .results (8 modèles)\n  .best_model_name = "lightgbm"\n  .mlflow_runs\n  .saved_model_paths\n}
+
+note over DEV
+  ⮕  Phase 4 :
+  python -m src.pipelines.phase4_hyperparameter_tuning
+  Lit lightgbm_metadata.json (is_best=True)
+  Optimise les hyperparamètres du champion
+end note
+
+@enduml

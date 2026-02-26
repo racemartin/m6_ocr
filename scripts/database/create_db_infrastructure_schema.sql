@@ -75,7 +75,10 @@ CREATE TABLE model_versions (
     mlflow_run_id   VARCHAR(255),
     algorithm       VARCHAR(100),
     hyperparameters JSONB,       
-    metrics         JSONB,       
+    metrics          JSONB,       
+    
+    -- Le seuil métier optimisé lors de la Phase 3/4
+    optimal_threshold FLOAT         DEFAULT 0.5,
     
     -- 📂 TRAÇABILITÉ PHYSIQUE DISJOINTE
     model_path      TEXT         NOT NULL,  -- Le fichier .joblib (le muscle)

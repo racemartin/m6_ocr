@@ -1,0 +1,88 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FAFAFA
+skinparam ActivityBackgroundColor #EBF4FB
+skinparam ActivityBorderColor #2E86AB
+skinparam ArrowColor #2E86AB
+skinparam DiamondBackgroundColor #FFF3CD
+skinparam DiamondBorderColor #F4A261
+skinparam NoteBackgroundColor #E8F8F5
+skinparam NoteBorderColor #3BB273
+
+title **Phase 1.1 · Activity — Ingestion CSV → raw_***
+
+start
+
+:CLI : python -m src.pipelines.phase1_1_inject_raw
+**--data-dir** data/raw;
+
+partition "STEP 0 · Connexion PostgreSQL" {
+  :get_engine()
+  → SQLAlchemy Engine (Docker);
+  :CreditScoringCleaner(
+    engine=engine
+    registry=REGISTRY
+    verbose=True
+  );
+  note right
+    Connecté :
+    host:port/database ✅
+  end note
+}
+
+partition "STEP 1 · Ingestion 8 CSV → raw_*" {
+  :cleaner.ingest_all(data_dir="data/raw");
+  note right
+    8 CSV Kaggle :
+    application_train.csv  (~307k lignes)
+    application_test.csv   (~48k lignes)
+    bureau.csv
+    bureau_balance.csv
+    previous_application.csv
+    POS_CASH_balance.csv
+    credit_card_balance.csv
+    installments_payments.csv
+  end note
+
+  :Pour chaque CSV :
+  pd.read_csv() → DataFrame
+  to_sql("raw_<nom>", engine
+    if_exists="replace"
+    chunksize=10 000);
+  note right
+    ⏳ Plusieurs minutes
+    sur dataset complet
+    ~1.8M lignes total
+  end note
+}
+
+partition "Résumé" {
+  :get_db_summary()
+  → tables créées;
+  :Afficher :
+  8 tables raw créées
+  Durée totale;
+}
+
+:return {
+  db_tables: [raw_application_train...]
+  t_ingestion, t_total
+};
+
+stop
+
+legend right
+  |= Tables raw créées |
+  | raw_application_train |
+  | raw_application_test |
+  | raw_bureau |
+  | raw_bureau_balance |
+  | raw_previous_application |
+  | raw_pos_cash_balance |
+  | raw_credit_card_balance |
+  | raw_installments_payments |
+  ──────────────────────────────
+  ⮕  Suite : phase1_2_views_fe_enum
+endlegend
+
+@enduml

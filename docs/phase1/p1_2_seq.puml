@@ -1,0 +1,108 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FAFAFA
+skinparam ParticipantBackgroundColor #EBF4FB
+skinparam ParticipantBorderColor #2E86AB
+skinparam SequenceArrowColor #2E86AB
+skinparam NoteBackgroundColor #E8F8F5
+skinparam NoteBorderColor #1ABC9C
+skinparam SequenceDividerBackgroundColor #D5E8D4
+skinparam SequenceDividerBorderColor #82B366
+
+title **Phase 1.2 · Séquence — Vues SQL + FE + Enums + Registry**
+
+actor "Dev" as DEV
+
+box "Python Process" #EBF4FB
+  participant "phase1_2\n_views_fe" as P2
+  participant "CreditScoring\nCleaner" as CSC
+  participant "generate\n_enums" as GE
+end box
+
+box "Filesystem" #F0FFF4
+  participant "data/interim/" as FI
+  participant "src/features\n/enums/" as FE
+  participant "config/" as FC
+end box
+
+box "Services" #FFF8E8
+  participant "PostgreSQL\n:5432" as PG
+end box
+
+== STEP 0 · Connexion + Vérification ==
+DEV -> P2 : python -m phase1_2_views_fe_enum
+P2  -> PG : get_engine() + check raw_* tables
+PG --> P2 : 8 tables raw_* trouvées ✅
+
+== STEP 2 · Création Vues SQL (cascade) ==
+P2  -> CSC : create_all_views()
+CSC -> PG  : CREATE OR REPLACE VIEW v_clean_application\n(nettoyage types, valeurs aberrantes)
+CSC -> PG  : CREATE VIEW v_agg_bureau\n(agrégat SUM/MEAN/MAX bureau + balance)
+CSC -> PG  : CREATE VIEW v_agg_prev_app\n(agrégat candidatures précédentes)
+CSC -> PG  : CREATE VIEW v_agg_pos_cash\n(agrégat POS cash balance)
+CSC -> PG  : CREATE VIEW v_agg_credit_card\n(agrégat cartes crédit)
+CSC -> PG  : CREATE VIEW v_agg_installments\n(agrégat paiements échelonnés)
+CSC -> PG  : CREATE VIEW v_master\n(JOIN de toutes les vues agrégées)
+CSC -> PG  : CREATE VIEW v_features_engineering\n(FE final : ratios, flags, encodages)
+PG --> P2  : 8 vues créées ✅
+note right of PG : v_features_engineering = source\nunique pour phases 2, 3, 4
+
+== STEP 3 · Vérification Vue Maîtresse ==
+P2  -> PG  : SELECT * FROM v_features_engineering\nWHERE split='train'
+PG --> P2  : df_train (~307k × 300+ cols)
+P2  -> PG  : SELECT * FROM v_features_engineering\nWHERE split='test'
+PG --> P2  : df_test (~48k × 300+ cols)
+P2  -> P2  : missing_pct analysis\ntarget distribution\n(défaut ≈ 8%)
+
+== STEP 4 · Export CSV Intermédiaires ==
+P2  -> FI  : df_train.to_csv("master_train.csv")
+P2  -> FI  : df_test.to_csv("master_test.csv")
+note right of FI : Fallback pour phase2\nsi DB non dispo
+
+== STEP 5 · Génération Enums ==
+P2  -> GE  : generate_enum_classes(\n  registry=REGISTRY\n  output_dir="src/features/enums"\n)
+GE  -> FE  : Écrire ContractTypeEnum.py\nGenderEnum.py\nFlagDocumentEnum.py\n... (1 fichier par domaine)
+FE --> P2  : N fichiers .py générés ✅
+
+== STEP 6 · Synchronisation REGISTRY ==
+P2  -> FC  : REGISTRY.to_yaml()\n→ config/feature_registry.yaml
+P2  -> PG  : REGISTRY.sync_to_db(engine)\nINSERT INTO feature_registry\n(name, type, description, source...)
+
+== Résumé Artefacts ==
+note over FI
+  **data/interim/**
+  master_train.csv  (~307k lignes)
+  master_test.csv   (~48k lignes)
+end note
+
+note over FE
+  **src/features/enums/**
+  ContractTypeEnum.py
+  GenderEnum.py
+  EducationTypeEnum.py
+  ...
+end note
+
+note over FC
+  **config/**
+  feature_registry.yaml
+end note
+
+note over PG
+  **PostgreSQL**
+  8 vues créées :
+  v_clean_application
+  v_agg_bureau / prev / pos / cc / inst
+  v_master
+  v_features_engineering ← clé
+  TABLE : feature_registry (REGISTRY)
+end note
+
+DEV <-- P2 : results {\n  train_shape, test_shape\n  db_views: 8\n  enum_files: N\n  t_total\n}
+
+note over DEV
+  ⮕  Suite :
+  python -m src.pipelines.phase2_feature_engineering
+end note
+
+@enduml

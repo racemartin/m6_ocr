@@ -94,13 +94,17 @@ reports/monitoring/
 # =============================================================================
 # Principe: Les données ne doivent JAMAIS être versionnées
 # Utiliser DVC, S3, ou autre solution de data versioning
+data/
 data/**/*
 !data/**/.gitkeep
+
+notebooks/*.parquet
 
 # =============================================================================
 # MODÈLES ML & ARTEFACTS
 # =============================================================================
 # Modèles entraînés (fichiers lourds et binaires)
+models/
 models/*.pkl
 models/*.h5
 models/*.pt
@@ -110,6 +114,9 @@ models/*.pt
 *.pt
 *.onnx
 *.tflite
+*.bin
+*.pyd
+*.so
 
 # Checkpoints et sauvegardes
 checkpoints/

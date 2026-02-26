@@ -1,0 +1,71 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FAFAFA
+skinparam ParticipantBackgroundColor #EBF4FB
+skinparam ParticipantBorderColor #2E86AB
+skinparam SequenceArrowColor #2E86AB
+skinparam NoteBackgroundColor #E8F8F5
+skinparam NoteBorderColor #1ABC9C
+skinparam SequenceDividerBackgroundColor #D5E8D4
+skinparam SequenceDividerBorderColor #82B366
+
+title **Phase 1.1 · Séquence — Ingestion CSV → PostgreSQL raw_***
+
+actor "Dev" as DEV
+
+box "Python Process" #EBF4FB
+  participant "phase1_1\n_inject_raw" as P1
+  participant "CreditScoring\nCleaner" as CSC
+end box
+
+box "Filesystem" #F0FFF4
+  participant "data/raw/\n(CSV Kaggle)" as CSV
+end box
+
+box "Services" #FFF8E8
+  participant "PostgreSQL\n:5432" as PG
+end box
+
+== STEP 0 · Connexion ==
+DEV -> P1  : python -m phase1_1_inject_raw\n--data-dir data/raw
+P1  -> PG  : get_engine()\nSQLAlchemy connect
+PG --> P1  : Engine OK
+P1  -> CSC : CreditScoringCleaner(\n  engine, REGISTRY, verbose=True\n)
+note right of CSC : Prêt à ingérer
+
+== STEP 1 · Ingestion CSV → raw_* ==
+P1  -> CSC : ingest_all(data_dir="data/raw")
+
+loop pour chaque CSV (8 fichiers)
+  CSC -> CSV : pd.read_csv("<nom>.csv"\n  low_memory=False)
+  CSV --> CSC : DataFrame (~10k-307k lignes)
+  CSC -> PG  : df.to_sql("raw_<nom>"\n  if_exists="replace"\n  chunksize=10 000)
+  PG --> CSC : Table créée ✅
+  note right of PG
+    raw_application_train  (307 511 × 122)
+    raw_application_test   ( 48 744 ×  121)
+    raw_bureau             (1 716 428 × 17)
+    raw_bureau_balance     (27 299 925 × 3)
+    raw_previous_application (1 670 214 × 37)
+    raw_pos_cash_balance   (10 001 358 × 8)
+    raw_credit_card_balance (3 840 312 × 23)
+    raw_installments_payments (13 605 401 × 8)
+  end note
+end
+
+== Résumé ==
+P1  -> PG  : get_db_summary()\n→ SELECT table_name FROM information_schema.tables
+PG --> P1  : {tables: [raw_application_train...]\n  views: []}
+
+DEV <-- P1 : results {\n  db_tables: 8 tables raw\n  t_ingestion: ~Xs\n  t_total: ~Xs\n}
+
+note over DEV, PG
+  **Artefacts créés dans PostgreSQL**
+  ─────────────────────────────────────────
+  8 tables raw_*  (données brutes Kaggle)
+  Prérequis pour phase1_2_views_fe_enum
+  ─────────────────────────────────────────
+  ⮕  Suite : python -m src.pipelines.phase1_2_views_fe_enum
+end note
+
+@enduml

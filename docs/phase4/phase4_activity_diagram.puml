@@ -1,0 +1,209 @@
+@startuml phase4_activity_diagram
+!theme plain
+skinparam backgroundColor #FAFAFA
+skinparam activity {
+    BackgroundColor #EBF4FB
+    BorderColor     #2E86AB
+    FontName        Helvetica
+    FontSize        11
+    ArrowColor      #2E86AB
+    ArrowFontSize   10
+    DiamondBackgroundColor #FFF3CD
+    DiamondBorderColor     #F4A261
+}
+skinparam note {
+    BackgroundColor #E8F8F5
+    BorderColor     #3BB273
+    FontSize        9
+}
+skinparam partition {
+    BackgroundColor #F0F4FF
+    BorderColor     #2E86AB
+    FontSize        12
+    FontStyle       bold
+}
+
+title <size:16><b>Phase 4 — Optimisation Hyperparamètres + Seuil Métier</b></size>\n<size:12>Prêt à Dépenser · Home Credit Default Risk</size>
+
+|#EBF5FB|**CLI / run_phase4()**|
+start
+
+:Analyse args CLI\n<size:9>--engine [gridsearch|optuna|both]\n--n-trials N  --champion NOM\n--source [db|csv]  --debug</size>;
+
+|#EBF5FB|**STEP 0 — Setup MLflow**|
+partition "STEP 0 · Setup MLflow" {
+    :mlflow.set_tracking_uri()\n<size:9>→ http://localhost:5001 (Docker)</size>;
+    :MlflowClient();
+    if (Expérience\n"Smart_Credit_Scoring_Phase4"\nexiste ?) then (oui)
+        :Récupérer experiment_id;
+    else (non)
+        :mlflow.create_experiment()\n<size:9>artifacts → ./mlflow/artifacts</size>;
+    endif
+    note right : ✅ experiment_id prêt
+}
+
+|#EBF5FB|**STEP 1 — Charger Champion Phase 3**|
+partition "STEP 1 · Charger Champion Phase 3" {
+    if (--champion\nspécifié ?) then (oui)
+        :Utiliser le nom fourni;
+    else (non)
+        :Scanner models/*_metadata.json\n<size:9>→ chercher is_best=True</size>;
+        if (Champion\ntrouvé ?) then (non)
+            :FileNotFoundError ❌\n<size:9>→ relancer Phase 3</size>;
+            stop
+        endif
+    endif
+    :joblib.load(models/<nom>_model.joblib)\n<size:9>→ champion_model (sklearn)</size>;
+    :Lire models/<nom>_metadata.json\n<size:9>→ champion_metadata\n   (eval_metrics, feature_names, run_id)</size>;
+    note right : Phase3 F2 baseline\nconnu ici
+}
+
+|#EBF5FB|**STEP 2 — Charger Données**|
+partition "STEP 2 · Charger Données" {
+    if (source == "db"\net DB_AVAILABLE ?) then (oui)
+        :PostgreSQL\nSELECT * FROM v_features_engineering\nWHERE split='train'\n<size:9>→ df_raw</size>;
+        note right : LIMIT debug_limit\nsi --debug
+    else (csv)
+        :Lire data/processed/X_train.csv\nLire data/processed/y_train.csv\n<size:9>→ df_raw</size>;
+    endif
+    :Éliminer colonnes meta\n<size:9>{target, split, sk_id_curr}</size>;
+    :select_dtypes(exclude=object)\nreplace(inf → nan).fillna(0);
+    :train_test_split(stratify=y,\ntest_size=eval_ratio,\nrandom_state=42)\n<size:9>→ X_train (80%) / X_eval (20%)</size>;
+    note right : ⚠️ même random_state\nque Phase 3 !\n→ splits identiques
+}
+
+|#F0FFF4|**STEP 3 — GridSearchCV**|
+partition "STEP 3 · GridSearchCV (optionnel)" {
+    if (engine ==\n"gridsearch"\nou "both" ?) then (oui)
+        :get_gridsearch_param_grid(champion_name)\n<size:9>ex LR: C×solver×max_iter = 4×2×2=16\nex XGB: 5 params = 3×3×3×3×2 = 162</size>;
+        :Calculer n_combinations\n<size:9>n_combinations × cv_folds = total fits</size>;
+        :build_model_from_params(champion_name, {}, rs)\n<size:9>→ modèle base avec class_weight etc.</size>;
+        :GridSearchCV(\n  scoring=make_scorer(fbeta, beta=2)\n  cv=StratifiedKFold(5)\n  refit=True\n  n_jobs=-1\n)\n.fit(X_train, y_train);
+        note right : ⚠️ refit=True\n→ best_estimator_ est déjà\nfitté sur X_train complet
+        :Extraire gs.best_params_\ngs.best_score_ (CV F2 mean)\ngs.best_estimator_;
+        :Évaluer sur X_eval (seuil 0.5)\n<size:9>→ eval_f2, eval_f1, eval_recall\n   eval_precision, eval_roc_auc</size>;
+        :pd.DataFrame(gs.cv_results_)\n.to_csv("phase4_gs_cv_results_<nom>.csv");
+        :_log_to_mlflow("gridsearch", result)\n<size:9>→ Run MLflow ouvert + fermé\n   params, métriques, modèle logué\n   ⚠️ seuil pas encore calculé</size>;
+        :gs_result = {engine, best_params,\nbest_cv_f2, eval_metrics,\ncv_results_df, model};
+    else (non)
+        :Ignoré;
+    endif
+}
+
+|#FFF0F5|**STEP 4 — Optuna**|
+partition "STEP 4 · Optuna TPE (optionnel)" {
+    if (engine ==\n"optuna"\nou "both" ?) then (oui)
+        if (OPTUNA_OK ?) then (non)
+            :ImportError ❌\n<size:9>uv add optuna optuna-integration</size>;
+            stop
+        endif
+        :StratifiedKFold(n_splits=5, shuffle=True);
+        :optuna.create_study(\n  direction="maximize"\n  sampler=TPESampler(seed=42)\n  pruner=MedianPruner(\n    n_startup_trials=5\n    n_warmup_steps=3\n  )\n);
+        note right : TPE = bayésien\nMedianPruner coupe\nles mauvais trials tôt
+        repeat
+            :Trial #N\nget_optuna_search_space(trial, champion_name)\n<size:9>→ trial.suggest_float/int/categorical\n   par param (log-scale pour C, lr)</size>;
+            :build_model_from_params(champion_name, params, rs);
+            :cross_val_score(\n  model, X_train, y_train\n  cv=StratifiedKFold(5)\n  scoring=scorer_f2\n  n_jobs=1\n)\n→ return scores.mean();
+            if (MedianPruner:\ntrial < médiane ?) then (oui)
+                :raise TrialPruned()\n<size:9>→ économie de temps</size>;
+            endif
+        repeat while (trials < n_trials\net pas timeout ?) is (oui)
+        ->non;
+        :study.best_trial.params\nstudy.best_trial.value (CV F2);
+        :build_model_from_params(best_params) + .fit(X_train);
+        note right : Refit sur X_train (80%)\nbest_params fixés
+        :Évaluer sur X_eval (seuil 0.5)\n<size:9>→ eval_f2, eval_f1, eval_recall\n   eval_precision, eval_roc_auc</size>;
+        :joblib.dump(study)\n→ reports/phase4_optuna_study_<nom>.pkl\n<size:9>→ pour visualisations notebook</size>;
+        :_log_to_mlflow("optuna", result)\n<size:9>→ Run MLflow ouvert + fermé\n   params, métriques, modèle logué\n   ⚠️ seuil pas encore calculé</size>;
+        :optuna_result = {engine, best_params,\nbest_cv_f2, eval_metrics,\nstudy, model};
+    else (non)
+        :Ignoré;
+    endif
+}
+
+|#EBF5FB|**STEP 5 — Comparer & Sélectionner**|
+partition "STEP 5 · Comparer Moteurs" {
+    :Construire candidates = {}\n<size:9>gs_result si disponible\noptuna_result si disponible</size>;
+    :best_engine = max(candidates\n  key=eval_metrics["f2"])\n<size:9>→ le meilleur F2 sur X_eval gagne</size>;
+    :Tableau comparatif\n<size:9>Moteur | CV F2 | Eval F2 | AUC | Recall | Precision | Temps | Gagnant</size>;
+    :self.best_engine = best_engine\nself.best_params  = winner["best_params"]\nself.best_model   = winner["model"];
+    :mlflow_client.set_tag(\n  run_gagnant, "phase4_winner", "true"\n);
+    note right : ✅ best_model fitté\nsur X_train (80%) ici
+}
+
+|#EBF5FB|**STEP 6 — Seuil Métier**|
+partition "STEP 6 · Optimisation Seuil" {
+    :best_model.predict_proba(X_eval)[:, 1]\n→ y_proba_eval;
+    :Balayage linspace(0.05, 0.80, 150)\nPour chaque seuil t :\n  y_pred = (proba >= t)\n  confusion_matrix → TN, FP, FN, TP\n  f2 = fbeta_score(beta=2)\n  cout = FN×COUT_FN + FP×COUT_FP;
+    note right : COUT_FN = 5\nCOUT_FP = 1\n(défaut non détecté\ncollte 5× plus)
+    :optimal_threshold = t où\ncout_metier est MINIMUM\n<size:9>→ self.optimal_threshold</size>;
+    :threshold_df.to_csv(\n  "reports/phase4_threshold_curve.csv"\n)\n<size:9>colonnes: threshold, f2, f1, recall,\nprecision, cout_metier, fn, fp, tn, tp</size>;
+    :─── POST-RUN LOG MLFLOW ───\nmlflow_client.log_metric(run_gagnant,\n  "optimal_threshold"\n  "threshold_f2"\n  "threshold_recall"\n  "threshold_precision"\n  "threshold_roc_auc"\n  "cout_metier_at_threshold"\n  "cout_metier_at_default_05"\n  "cout_saved_vs_default"\n)\nmlflow_client.set_tag("threshold_optimized")\nmlflow_client.log_artifact(threshold_curve.csv);
+    note right : ✅ Seuil connu\n→ on peut maintenant\nfaire le refit final
+}
+
+|#EBF5FB|**STEP 5b — Refit Final 100%**|
+partition "STEP 5b · Refit Final (100% données)" {
+    :X_full = concat([X_train, X_eval])\ny_full = concat([y_train, y_eval])\n<size:9>100% des données labelisées disponibles</size>;
+    :sklearn_clone(best_model)\n<size:9>→ repart de zéro, même architecture</size>;
+    :clone.set_params(**best_params)\n<size:9>→ réinjecte les meilleurs hyperparamètres</size>;
+    :<b>clone.fit(X_full, y_full)</b>\n<size:9>→ REFIT sur 100% des données</size>;
+    note right : ⚠️ Après ce refit\nX_eval est IN le modèle\n→ ne plus utiliser\nX_eval pour évaluer !
+    :self.best_model = clone_refitté;
+    :mlflow_client.set_tag(\n  "refit_on_full_data", "true"\n)\nmlflow_client.log_metric(\n  "refit_train_size", X_full.shape[0]\n);
+    note right : ✅ Modèle final prêt\npour la production
+}
+
+|#EBF5FB|**STEP 7 — Sauvegarde**|
+partition "STEP 7 · Sauvegarder" {
+    :joblib.dump(best_model)\n→ models/phase4_best_model.joblib;
+    :Métriques au seuil optimal\n(calculées sur X_eval AVANT refit)\n<size:9>f2, f1, recall, precision, roc_auc\n→ eval_at_threshold dict</size>;
+    :Construire metadata dict\n<size:9>model_name, champion_phase3, model_class\noptimization_engine, best_params\nphase3_eval_f2 (baseline)\nphase4_eval_metrics (seuil 0.5)\nphase4_eval_at_threshold (seuil opt)\noptimal_threshold, cout_fn, cout_fp\nfeature_names, n_features\ntrain_samples, eval_samples, target_rate\nmlflow_run_ids, model_path, saved_at</size>;
+    :json.dump(metadata)\n→ models/phase4_best_model_metadata.json;
+    :self.eval_metrics = eval_at_threshold\n<size:9>← utilisé par step8 (pas de re-predict)</size>;
+    :─── RE-LOG MLFLOW ───\nmlflow_client.log_param(\n  "optimal_threshold_final"\n)\nmlflow_client.log_artifact(\n  phase4_best_model.joblib\n  phase4_best_model_metadata.json\n);
+}
+
+|#FFF8E8|**STEP 8 — Registre PostgreSQL**|
+partition "STEP 8 · Registre DB" {
+    if (DB_AVAILABLE ?) then (oui)
+        :version = "v_phase4_YYYYMMDD_HHMMSS";
+        :metrics_dict depuis self.eval_metrics\n<size:9>f2, f1, recall, roc_auc\noptimal_threshold, engine\nrefit_on_full_data=True</size>;
+        :INSERT INTO model_versions\n<size:9>model_name, version, mlflow_run_id\nalgorithm, hyperparameters (JSONB)\nmetrics (JSONB), optimal_threshold\nmodel_path, metadata_path\nstatus="optimized"</size>\nRETURNING id;
+        :self.model_version_id = id;
+        note right : ✅ Versioning\ncomplet
+    else (non)
+        :WARNING → Ignoré;
+    endif
+}
+
+|#FFF8E8|**STEP 9 — Benchmarks Monitoring**|
+partition "STEP 9 · Monitoring Benchmarks" {
+    if (DB_AVAILABLE ?) then (oui)
+        :benchmarks = {\n  ref_f2_score, ref_auc_roc\n  ref_recall, ref_precision\n  ref_threshold\n}\n<size:9>← depuis self.eval_metrics</size>;
+        :Pour chaque benchmark :\nINSERT INTO monitoring_metrics\n<size:9>metric_name, metric_value\nmetric_type="performance_benchmark"\nmodel_version_id, metadata(JSONB)</size>;
+        note right : Ces valeurs servent\nde seuils d'alerte\npour la Phase 5+
+    else (non)
+        :WARNING → Ignoré;
+    endif
+}
+
+|#EBF5FB|**Résumé Final**|
+:Afficher résumé\n<size:9>Durée totale · Champion Phase 3\nMoteur gagnant · Meilleurs params\nF2 Phase3 baseline → F2 Phase4\nSeuil optimal\nMLflow URI · Expérience</size>;
+:return pipeline\n<size:9>→ .best_model (fitté sur 100%)\n→ .optimal_threshold\n→ .threshold_df\n→ .mlflow_run_ids\n→ .eval_metrics</size>;
+
+stop
+
+legend right
+    |= Couleur |= Signification |
+    |<#EBF5FB>   | Pipeline principal |
+    |<#F0FFF4>   | GridSearchCV |
+    |<#FFF0F5>   | Optuna |
+    |<#FFF8E8>   | Persistance (DB) |
+    |<#FFF3CD>   | Décision / branchement |
+    \n<b>Ordre des steps critique :</b>
+    Step 6 (seuil) AVANT Step 5b (refit)
+    car seuil calculé sur X_eval (avant refit)
+endlegend
+
+@enduml

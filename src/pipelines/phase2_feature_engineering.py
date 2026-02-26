@@ -51,7 +51,7 @@ from   src.features.registry import FeatureConfigurator # Pipeline sklearn
 # CHARGEMENT DES DONNÉES
 # ############################################################################
 
-DEBUG_MODE  = True
+DEBUG_MODE  = False
 DEBUG_LIMIT = 10000  # or None
 
 
@@ -259,6 +259,7 @@ def run_phase2(
     output_dir:    str  = "data/processed",
     artifacts_dir: str  = "models/preprocessor",
     export_csv:    bool = True,
+    export_db:     bool = True,
 ) -> dict:
     """
     Exécute la Phase 2 complète : du DataFrame brut aux matrices ML.
@@ -306,7 +307,7 @@ def run_phase2(
     # ── [2] Validation du DataFrame contre le REGISTRY ───────────────────
     print("\n[2] Validation contre le REGISTRY ...")
     config     = FeatureConfigurator(registry=REGISTRY, verbose=True)
-    validation = REGISTRY.validate_dataframe(list(df_train.columns))
+    validation = REGISTRY.validate_dataframe_robust(list(df_train.columns))
 
     if not validation["ok"]:
         inconnues  = validation["unknown_in_df"][:5]
@@ -393,6 +394,29 @@ def run_phase2(
         resultats["shape_X_train"]  = X_train.shape
         resultats["shape_X_test"]   = X_test.shape
 
+    if export_db:
+        print("\n[10.1] Exportation des matrices vers PostgreSQL ...")
+        try:
+            engine = get_engine()
+            
+            # Guardar X_train
+            X_train.to_sql('ml_X_train', engine, if_exists='replace', index=False)
+            print(f"    Table 'ml_X_train'......: {X_train.shape} [OK]")
+            
+            # Guardar X_test
+            X_test.to_sql('ml_X_test', engine, if_exists='replace', index=False)
+            print(f"    Table 'ml_X_test'.......: {X_test.shape} [OK]")
+            
+            # Guardar y_train
+            if y_train is not None:
+                # Convertimos a DataFrame si es una Serie para asegurar la compatibilidad con to_sql
+                y_df = y_train.to_frame() if isinstance(y_train, pd.Series) else y_train
+                y_df.to_sql('ml_y_train', engine, if_exists='replace', index=False)
+                print(f"    Table 'ml_y_train'......: {y_df.shape} [OK]")
+                
+        except Exception as e:
+            print(f"    ❌ Erreur lors de l'export DB : {e}")
+    
     # ── Résumé du REGISTRY ────────────────────────────────────────────────
     REGISTRY.summary()
 

@@ -1,0 +1,116 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FAFAFA
+skinparam ParticipantBackgroundColor #EBF4FB
+skinparam ParticipantBorderColor #2E86AB
+skinparam SequenceArrowColor #2E86AB
+skinparam NoteBackgroundColor #E8F8F5
+skinparam NoteBorderColor #1ABC9C
+skinparam SequenceDividerBackgroundColor #D5E8D4
+skinparam SequenceDividerBorderColor #82B366
+
+title **Phase 2 · Séquence — Feature Engineering & Preprocessing sklearn**
+
+actor "Dev" as DEV
+
+box "Python Process" #EBF4FB
+  participant "phase2_feature\n_engineering" as P2
+  participant "Feature\nConfigurator" as FC
+end box
+
+box "Filesystem" #F0FFF4
+  participant "data/interim\n(CSV)" as FI
+  participant "data/processed\n(CSV)" as FP
+  participant "models/\npreprocessor/" as FM
+end box
+
+box "Services" #FFF8E8
+  participant "PostgreSQL\n:5432" as PG
+end box
+
+== STEP 1 · Chargement Données ==
+DEV -> P2 : python -m phase2_feature_engineering\n--source db
+
+P2  -> PG : SELECT * FROM v_features_engineering\nWHERE sk_id_curr IN (SELECT...LIMIT N)
+PG --> P2 : df_train (~307k × 300+ cols)
+P2  -> PG : SELECT * FROM v_features_engineering\nWHERE split='test'
+PG --> P2 : df_test (~48k × 300+ cols)
+note right of PG : Fallback : read_csv(data/interim/)\nsi --source csv
+
+== STEP 1.5 · Sync Types Catégoriels ==
+P2  -> P2 : cat_cols = REGISTRY.CATEGORICAL\ndf.astype(str).replace("None"→NaN)
+note right of P2 : Anti-bug PostgreSQL\n"None" str → NaN propre
+
+== STEP 2 · Validation REGISTRY ==
+P2  -> FC  : FeatureConfigurator(registry=REGISTRY)
+P2  -> P2  : REGISTRY.validate_dataframe(columns)\n→ unknown_in_df, missing_from_df
+
+== STEP 3 · Fit sur Train (anti-leakage) ==
+P2  -> FC  : config.fit(df_train)
+note over FC
+  Calcule et mémorise UNIQUEMENT sur train :
+  ─────────────────────────────────────────
+  médianes → imputation NaN
+  μ / σ    → StandardScaler
+  IQR      → RobustScaler
+  catégories → OneHotEncoder mapping
+  ─────────────────────────────────────────
+  ⚠️ JAMAIS appelé sur df_test
+end note
+FC --> P2  : config fitté (paramètres appris)
+
+== STEP 4 · Target Encoding (optionnel) ==
+P2  -> FC  : fit_target_encoding(\n  df_train, smoothing=1.0\n)
+note right of FC : Colonnes haute cardinalité\nRégularisation bayésienne
+
+== STEP 5+6 · Transform Train & Test ==
+P2  -> FC  : config.transform(df_train)
+FC --> P2  : X_train (sklearn-ready)
+P2  -> FC  : config.get_target(df_train)
+FC --> P2  : y_train (Series 0/1)
+P2  -> FC  : config.transform(df_test)
+FC --> P2  : X_test (mêmes colonnes)
+note right of FC : Même fit appliqué sur test\n→ zéro data leakage ✅
+
+== STEP 7 · Alignement Colonnes OHE ==
+P2  -> P2  : cols_manquantes = train_cols - test_cols\n→ ajout à 0.0 dans X_test
+P2  -> P2  : cols_en_trop = test_cols - train_cols\n→ drop de X_test
+P2  -> P2  : X_test = X_test[X_train.columns]
+note right of P2 : OHE peut créer ~50 colonnes\nabsentes du test → alignement obligatoire
+
+== STEP 8 · Contrôles Qualité ==
+P2  -> P2  : NaN résiduels ?\nVariance nulle ?\nInf values ?\nTarget distribution ?
+
+== STEP 9 · Sauvegarde Artefacts ==
+P2  -> FM  : config.save_artifacts("models/preprocessor")\n→ **preprocessor.pkl** (joblib)
+note right of FM : Contient médianes + scalers\nfittés → reproductible Phase 3/4/5
+
+== STEP 10 · Export Datasets Finaux ==
+P2  -> FP  : X_train.to_csv("X_train.csv")
+P2  -> FP  : X_test.to_csv("X_test.csv")
+P2  -> FP  : y_train.to_csv("y_train.csv")
+P2  -> FP  : df_test[sk_id_curr].to_csv("test_ids.csv")
+
+== Résumé Artefacts ==
+note over FP
+  **data/processed/**
+  X_train.csv  (~307k × 300 features)
+  X_test.csv   (~48k  × 300 features)
+  y_train.csv  (~307k valeurs 0/1)
+  test_ids.csv (sk_id_curr Kaggle)
+end note
+
+note over FM
+  **models/preprocessor/**
+  preprocessor.pkl
+  (scalers + encoders fittés)
+end note
+
+DEV <-- P2 : resultats {\n  nb_features: ~300\n  X_train.shape, X_test.shape\n  t_total\n}
+
+note over DEV
+  ⮕  Suite :
+  python -m src.pipelines.phase3_model_training_mlflow
+end note
+
+@enduml

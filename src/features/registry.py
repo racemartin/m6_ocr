@@ -80,6 +80,18 @@ def _coerce_numeric_columns(X):
         df_tmp[c] = pd.to_numeric(df_tmp[c], errors="coerce")
     return df_tmp.values.astype(float)
 
+# ##############################################################################
+# UTILITAIRES DE TRANSFORMATION (GLOBAL POUR PICKLE)
+# ##############################################################################
+
+def safe_log1p(X):
+    """
+    Calcule log(1+x) en protégeant contre les valeurs négatives.
+    Défini au niveau global pour permettre la sérialisation via pickle.
+    """
+    import numpy as np
+    return np.log1p(np.maximum(X, 0))
+    
 
 class FeatureConfigurator:
     """
@@ -147,7 +159,7 @@ class FeatureConfigurator:
         self._log("============================================================================")
 
         # 1. Validation du DataFrame contre le registre
-        validation = self.registry.validate_dataframe(list(df_train.columns))
+        validation = self.registry.validate_dataframe_robust(list(df_train.columns))
         if validation["unknown_in_df"]:
             self._log(f"\n  ⚠️  Colonnes inconnues dans le DF ({len(validation['unknown_in_df'])}) :")
             self._log(f"     {validation['unknown_in_df'][:10]}")
@@ -366,27 +378,37 @@ class FeatureConfigurator:
             ])
             transformers.append(("ordinal", ord_pipe, self.cols_ordinal_active))
         
-        # ── 3. Log → Standard ─────────────────────────────────────────────
+        # ── 3. Log → Standard (VERSION SÉRIALISABLE  ──────────────────────
+        # ── sin lambda x: np.sign(x) * np.log1p(np.abs(x))) ───────────────
         self._log("\n     ── 3. Log → Standard ...")
+        
         if self.cols_log_active:
-            # Imputation médiane, puis log1p, puis standard scaler
             log_pipe = Pipeline([
-                ("imputer",  SimpleImputer(strategy="median")),
-                ("log",      FunctionTransformer(np.log1p, validate=False,
-                                                 feature_names_out="one-to-one")),
+                # Imputation à 0 : sûr pour counts et amounts agrégées
+                ("imputer",  SimpleImputer(strategy="constant", fill_value=0)),
+                # sign * log1p(|x|) : gère les valeurs négatives légitimes
+                # (ex: AMT_CREDIT_SUM_DEBT min=-4.7M, AMT_CREDIT_SUM_LIMIT min=-586k)
+                ("log",      FunctionTransformer(
+                                 safe_log1p,  # <--- Usamos la función global
+                                 validate=False,
+                                 feature_names_out="one-to-one"
+                             )),
                 ("scaler",   StandardScaler())
             ])
             transformers.append(("log", log_pipe, self.cols_log_active))
+            
+        # ── 4. Standard (Version avec Indicateur de Valeurs Manquantes) ────
+        self._log("\n     ── 4. Standard (Imputation Médiane + Indicateur) ...")
         
-        # ── 4. Standard ───────────────────────────────────────────────────
-        self._log("\n     ── 4. Standard ...")
         if self.cols_standard_active:
             std_pipe = Pipeline([
-                ("imputer", SimpleImputer(strategy="median")),
+                # add_indicator=True : Crée une colonne binaire supplémentaire 
+                # pour chaque feature où une valeur manquante a été détectée.
+                ("imputer", SimpleImputer(strategy="median", add_indicator=True)),
                 ("scaler",  StandardScaler())
             ])
-            transformers.append(("standard", std_pipe, self.cols_standard_active))
-
+            transformers.append(("standard", std_pipe, self.cols_standard_active))        
+        
         # ── 5. Robust ─────────────────────────────────────────────────────
         self._log("\n     ── 5. Robust ...")
         if self.cols_robust_active:
@@ -407,7 +429,8 @@ class FeatureConfigurator:
                     validate=False,
                     feature_names_out="one-to-one",
                 )),
-                ("imputer", SimpleImputer(strategy="most_frequent")),
+                # ("imputer", SimpleImputer(strategy="most_frequent")),
+                ("imputer", SimpleImputer(strategy="constant", fill_value=0)),
             ])
             transformers.append(("binary", bin_pipe, self.cols_binary_active))
         
@@ -430,7 +453,17 @@ class FeatureConfigurator:
         self._log("\n     ── Fit du ColumnTransformer sur les données d'entrainement ...")
         # Fit du ColumnTransformer sur les données d'entrainement
         X_train = self._prepare_df(df_train)
-        self.preprocessor.fit(X_train)
+        
+        # Les colonnes 100% NaN (ex: FLAG_DOCUMENT_* constants dans le test)
+        # sont correctement gérées par fill_value=0 — le warning sklearn est informatif
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message="Skipping features without any observed values",
+                category=UserWarning,
+            )
+            self.preprocessor.fit(X_train)
 
         self._log("\n     ── preprocessor.fit(X_train) Done!")
         
@@ -500,7 +533,13 @@ class FeatureConfigurator:
             raise RuntimeError("FeatureConfigurator non fitted. Appelez fit() d'abord.")
 
         X = self._prepare_df(df)
-        X_transformed = self.preprocessor.transform(X)
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message="Skipping features without any observed values",
+                category=UserWarning,
+            )
+            X_transformed = self.preprocessor.transform(X)
 
         if not return_dataframe:
             return X_transformed

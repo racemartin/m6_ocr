@@ -1,0 +1,125 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FAFAFA
+skinparam ActivityBackgroundColor #EBF4FB
+skinparam ActivityBorderColor #2E86AB
+skinparam ArrowColor #2E86AB
+skinparam DiamondBackgroundColor #FFF3CD
+skinparam DiamondBorderColor #F4A261
+skinparam NoteBackgroundColor #E8F8F5
+skinparam NoteBorderColor #3BB273
+
+title **Phase 3 · Activity (1/2) — Setup → Training → MLflow**
+
+start
+
+:CLI : `python -m src.pipelines.phase3_model_training_mlflow`
+**--source** [db|csv] [**--debug**] [**--save-all**];
+
+partition "STEP 0 · MLflow Setup" {
+  :mlflow.set_tracking_uri("http://localhost:5001");
+  :mlflow.sklearn.autolog(disable=True);
+  if (Expérience\n"Smart_Credit_Scoring"\nexiste ?) then (oui)
+    if (deleted ?) then (oui)
+      :restore_experiment();
+    endif
+    :Récupérer experiment_id;
+  else (non)
+    :create_experiment(
+      artifacts → ./mlflow/artifacts
+    );
+  endif
+  note right : ⚠️ Docker MLflow\ndoit être actif :5001
+}
+
+partition "STEP 1 · Chargement Données" {
+  if (source == "db" ?) then (oui)
+    :Connexion PostgreSQL;
+    :SELECT * FROM v_features_engineering
+    WHERE split='train' [LIMIT si --debug];
+  else (csv)
+    :Chargement via pandas;
+    :data/processed/X_train.csv
+    data/processed/y_train.csv;
+  endif
+  :Valider TARGET :
+  1. Supprimer lignes TARGET NULL
+  2. Forcer int (0/1)
+  3. Afficher ratio défaut ≈ 8%;
+  note right : Déséquilibre 1:11\n→ class_weight='balanced'
+}
+
+partition "STEP 2 · Split Stratifié 80/20" {
+  :Nettoyage final :
+  - Éliminer colonnes meta {target, split, sk_id_curr}
+  - replace(inf→nan).fillna(0);
+  :train_test_split(
+    stratify=y,
+    test_size=0.20,
+    random_state=42
+  );
+  note right
+    X_train : ~192k × 300 features
+    X_eval  :  ~48k × 300 features
+    Défauts identiques dans les 2 splits
+  end note
+}
+
+partition "STEP 3 · ClassificationModeler" {
+  :Initialiser ClassificationModeler(
+    X_train=X_train, y_train=y_train,
+    X_test=X_eval,  y_test=y_eval,
+    config={CV_FOLDS:5, THRESHOLD:0.5}
+  );
+  note right : X_test du Modeler\n= holdout eval (pas Kaggle)
+}
+
+partition "STEP 4 · Boucle Entraînement (8 modèles)" {
+  :catalogue = _build_models_config(rs=42)
+  {dummy, logistic, tree, rf, gb, xgb, lgbm, mlp+SMOTE};
+
+  repeat
+    :modeler.entrainer_modele(
+      modele=model,
+      nom=model_name
+    );
+    :Exécuter :
+    - CV 5-plis StratifiedKFold
+    - Fit complet sur X_train
+    - Calcul métriques train/eval/CV;
+    note right
+      Calcul des scores : f1, f2, recall, auc
+      Génération matrice confusion
+      Calcul feature_importances_
+    end note
+
+    :mlflow.start_run(model_name + "_run");
+    :Logging MLflow :
+    - set_tags(model_name, class, phase3)
+    - log_params(model_*, cv_folds, n_features...)
+    - log_metric(train_*, eval_*, cv_*)
+    - log_metric(overfitting_f2 = train_f2 - eval_f2)
+    - sklearn.log_model(model, "model")
+    - log_artifact(confusion_matrix.txt)
+    - log_artifact(feature_importance.csv)
+    - log_input(train_data);
+    :mlflow.end_run();
+
+  repeat while (modèles restants ?) is (oui)
+  -> non;
+}
+
+stop
+
+legend right
+  |= 8 Modèles entraînés |
+  | 1. DummyClassifier (baseline) |
+  | 2. LogisticRegression |
+  | 3. DecisionTreeClassifier |
+  | 4. RandomForestClassifier |
+  | 5. GradientBoostingClassifier |
+  | 6. XGBClassifier |
+  | 7. LGBMClassifier |
+  | 8. MLP + SMOTE Pipeline |
+endlegend
+@enduml

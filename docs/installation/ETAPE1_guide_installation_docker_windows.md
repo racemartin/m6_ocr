@@ -370,6 +370,12 @@ docker exec -it postgres_db psql -U mlflow_user -d postgres -c "GRANT CONNECT ON
 docker exec -it postgres_db psql -U mlflow_user -d postgres -c "\l"
 
 
+
+docker exec -it postgres_db psql -U mlflow_user -d mlflow_db -c -c "
+SELECT pid, now() - query_start AS duration, query, state 
+FROM pg_stat_activity 
+WHERE state != 'idle' AND query NOT LIKE '%pg_stat_activity%';"
+
 ---
 
 ## 8. Vérifier que tout fonctionne
@@ -474,6 +480,7 @@ cd C:\Projets\credit-scoring-mlops
 docker compose up -d mlflow
 docker compose up -d postgres 
 docker compose up -d postgres mlflow
+docker compose up -d postgres mlflow pgadmin
 
 # Vérifier que tout tourne
 docker compose ps

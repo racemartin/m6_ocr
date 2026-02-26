@@ -1,0 +1,97 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FAFAFA
+skinparam ActivityBackgroundColor #EBF4FB
+skinparam ActivityBorderColor #2E86AB
+skinparam ArrowColor #2E86AB
+skinparam DiamondBackgroundColor #FFF3CD
+skinparam DiamondBorderColor #F4A261
+skinparam NoteBackgroundColor #E8F8F5
+skinparam NoteBorderColor #3BB273
+
+title **Phase 1.2 · Activity — Vues SQL + FE + Enums + Registry**
+
+start
+
+:Lancement CLI :
+`python -m src.pipelines.phase1_2_views_fe_enum`
+**--output-dir** data/interim;
+
+partition "STEP 0 · Connexion" {
+    :Initialisation CreditScoringCleaner;
+    if (Tables raw_* existent ?) then (non)
+        #FF6666:RuntimeError : Tables manquantes;
+        stop
+    endif
+    note right : Vérification des 8 tables raw_* ✅
+}
+
+partition "STEP 2 · Création Vues SQL" {
+    :cleaner.create_all_views();
+    note right
+        Pipeline SQL en cascade :
+        raw_* → v_clean_*
+        Aggregation (Bureau, Prev, etc.)
+        v_master → **v_features_engineering**
+    end note
+}
+
+partition "STEP 3 · Vérification Vue Maîtresse" {
+    :Exécution via `load_train_test(use_features_view=True)`;
+    :Vérification du split 'train'/'test';
+    :Analyse des valeurs manquantes (Nulls);
+    if (missing_pct > 50% ?) then (oui)
+        :Afficher Warning;
+    endif
+    :Calcul distribution TARGET (Défaut ≈ 8%);
+    note right : Validation shape train + test
+}
+
+partition "STEP 4 · Export CSV (optionnel)" {
+    if (export_csv ?) then (oui)
+        :Export `master_train.csv` & `master_test.csv`;
+    else (non)
+        :Ignoré (--no-export);
+    endif
+}
+
+partition "STEP 5 · Génération Enums" {
+    if (gen_enums ?) then (oui)
+        :generate_enum_classes(REGISTRY);
+        note right
+            Génération fichiers .py
+            ex: ContractTypeEnum.py
+        end note
+    else (non)
+        :Ignoré (--no-enums);
+    endif
+}
+
+partition "STEP 6 · Synchronisation REGISTRY" {
+    :Export config/feature_registry.yaml;
+    :Sync REGISTRY vers table DB `feature_registry`;
+}
+
+partition "STEP 7 · Résumé Final" {
+    :Génération du rapport de synthèse;
+    :Affichage stats (Shapes, Taux défaut, Durée);
+}
+
+:Retourne l'objet `results`;
+stop
+
+legend right
+    |= Vues SQL créées |
+    | v_clean_application |
+    | v_agg_bureau |
+    | v_agg_prev_app |
+    | v_agg_pos_cash |
+    | v_agg_credit_card |
+    | v_agg_installments |
+    | v_master |
+    | **v_features_engineering** |
+    ──────────────────────────────
+    ⮕  Suite : phase2_feature_engineering
+endlegend
+
+@enduml

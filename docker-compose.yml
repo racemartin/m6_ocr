@@ -15,6 +15,19 @@ services:
       # ON MONTE LE SCRIPT D'INITIALISATION ICI :
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
 
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin_service
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      # Optionnel : fixe le mode serveur pour éviter les soucis de session
+      PGADMIN_CONFIG_SERVER_MODE: 'True'
+    ports:
+      - "0.0.0.0:8088:80" # Force l'écoute sur toutes les interfaces réseau
+    depends_on:
+      - postgres
+
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.16.0
     depends_on: [postgres]
@@ -45,18 +58,7 @@ services:
       MODEL_STAGE:         Production
     env_file: [.env]
 
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: pgadmin_service
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@admin.com
-      PGADMIN_DEFAULT_PASSWORD: admin
-      # Optionnel : fixe le mode serveur pour éviter les soucis de session
-      PGADMIN_CONFIG_SERVER_MODE: 'True'
-    ports:
-      - "0.0.0.0:8088:80" # Force l'écoute sur toutes les interfaces réseau
-    depends_on:
-      - postgres
+
 
 volumes:
   postgres_data:

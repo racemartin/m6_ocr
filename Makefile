@@ -16,6 +16,12 @@ else
 HAS_CONDA=True
 endif
 
+PYTHON := uv run python
+
+ifeq ($(OS),Windows_NT)
+    SHELL := cmd.exe
+endif
+
 #################################################################################
 # COMMANDS                                                                      #
 #################################################################################
@@ -80,6 +86,45 @@ test_environment:
 # PROJECT RULES                                                                 #
 #################################################################################
 
+phase1_1:
+	@echo 🚀 Running Phase 1_1: Data Inhection ...
+ifdef UV
+	uv run phase1_1
+else
+	@$(PYTHON) -m src.pipelines.phase1_1_inject_raw
+endif
+
+phase1_2:
+	@echo 🚀 Running Phase 1_2: Data preparation ...
+ifdef UV
+	uv run phase1_2
+else
+	@$(PYTHON) -m src.pipelines.phase1_2_views_fe_enum
+endif
+
+phase2:
+	@echo 🚀 Running Phase 2: Feature Engineering ...
+ifdef UV
+	uv run phase2
+else
+	@$(PYTHON) -m src.pipelines.phase2_feature_engineering
+endif
+
+phase3:
+	@echo 🚀 Running Phase 3: Model Training ...
+ifdef UV
+	uv run phase3
+else
+	@$(PYTHON) -m src.pipelines.phase3_model_training_mlflow
+endif
+
+phase4:
+	@echo 🚀 Running Phase 4: Hyperparameter Tuning ...
+ifdef UV
+	uv run phase4
+else
+	@$(PYTHON) -m src.pipelines.phase4_hyperparameter_tuning
+endif
 
 
 #################################################################################

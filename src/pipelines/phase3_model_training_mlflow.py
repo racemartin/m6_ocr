@@ -51,64 +51,78 @@ Usage
 
 from __future__ import annotations
 
-# ── Standard ───────────────────────────────────────────────────────────────
-import argparse
-import json
-import os
-import sys
-import time
-import traceback
-import warnings
-from datetime import datetime
-from pathlib import Path
-from typing import Dict, List, Optional
+# ── Bibliothèques Standards ────────────────────────────────────────────────
+import argparse                               # Analyse des arguments CLI
+import json                                   # Manipulation du format JSON
+import os                                     # Interactions système
+import sys                                    # Gestion des chemins système
+import time                                   # Mesure du temps d'exécution
+import traceback                              # Tracement détaillé des erreurs
+import warnings                               # Gestion des alertes Python
+import datetime                               # Gestion des dates et durées
+from   pathlib  import Path                   # Manipulation objet des chemins
+from   typing   import Dict, List, Optional    # Typage statique pour le code
 
-warnings.filterwarnings("ignore")
+# ── Infrastructure et Persistance ──────────────────────────────────────────
+import joblib                                 # Sérialisation des modèles
+import mlflow                                 # Tracking des expériences
+import mlflow.sklearn                         # Intégration Scikit-learn/MLflow
+from   mlflow           import MlflowClient   # Client gestionnaire MLflow
+from   mlflow.models    import infer_signature # Signature des entrées/sorties
+from   sqlalchemy       import text           # Requêtes SQL brutes sécurisées
 
-# ── Infrastructure ─────────────────────────────────────────────────────────
-import joblib
-from sqlalchemy import text
+# ── Stack Scientifique et Data ──────────────────────────────────────────────
+import numpy  as np                           # Calcul numérique de précision
+import pandas as pd                           # Manipulation de DataFrames
 
-# ── Stack scientifique ─────────────────────────────────────────────────────
-import numpy  as np
-import pandas as pd
-
-# ── MLflow ─────────────────────────────────────────────────────────────────
-import mlflow
-import mlflow.sklearn
-from mlflow import MlflowClient
-from mlflow.models import infer_signature
-
-# ── Scikit-learn ───────────────────────────────────────────────────────────
-from sklearn.dummy          import DummyClassifier
-from sklearn.linear_model   import LogisticRegression
-from sklearn.tree           import DecisionTreeClassifier
-from sklearn.ensemble       import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.neural_network import MLPClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import (
-    accuracy_score, f1_score, fbeta_score,
-    precision_score, recall_score, roc_auc_score,
+# ── Scikit-learn (Moteurs de Classification) ───────────────────────────────
+from   sklearn.dummy           import DummyClassifier    # Baseline naïve
+from   sklearn.linear_model    import LogisticRegression # Modèle linéaire
+from   sklearn.tree            import DecisionTreeClassifier # Arbre simple
+from   sklearn.neural_network  import MLPClassifier      # Réseau de neurones
+from   sklearn.ensemble        import (
+    RandomForestClassifier,                   # Bagging robuste
+    GradientBoostingClassifier                # Boosting séquentiel
 )
 
-# ── Boosting avancé ────────────────────────────────────────────────────────
+# ── Scikit-learn (Évaluation et Splits) ────────────────────────────────────
+from   sklearn.model_selection import train_test_split   # Séparation des sets
+from   sklearn.metrics         import (
+    accuracy_score,                           # Précision globale
+    f1_score,                                 # Moyenne harmonique P/R
+    fbeta_score,                              # Score F-beta (F2 ciblé)
+    precision_score,                          # Exactitude des positifs
+    recall_score,                             # Capacité de détection
+    roc_auc_score                             # Capacité de discrimination
+)
+
+# ── Bibliothèques pour le Déséquilibre (Imbalanced-Learn) ──────────────────
+from   imblearn.over_sampling  import SMOTE   # Suréchantillonnage synthétique
+from   imblearn.pipeline       import Pipeline # Pipeline compatible SMOTE
+
+# ----------------------------------------------------------------------------
+# CONFIGURATION ET CHARGEMENT DES MODULES PROPRIÉTAIRES
+# ----------------------------------------------------------------------------
+
+warnings.filterwarnings("ignore")             # Silence sur les dépréciations
+
+# Vérification XGBoost
 try:
     from xgboost import XGBClassifier
-    XGBOOST_OK = True
+    XGBOOST_OK = True                         # Moteur XGBoost opérationnel
 except ImportError:
-    XGBOOST_OK = False
+    XGBOOST_OK = False                        # Repli si absent
     print("⚠️  XGBoost non installé → uv add xgboost")
 
+# Vérification LightGBM
 try:
     from lightgbm import LGBMClassifier
-    LGBM_OK = True
+    LGBM_OK = True                            # Moteur LightGBM opérationnel
 except ImportError:
-    LGBM_OK = False
+    LGBM_OK = False                           # Repli si absent
     print("⚠️  LightGBM non installé → uv add lightgbm")
 
-# ── ClassificationModeler ─────────────────────────────────────────────────
-# Cherche d'abord dans src/models/ (emplacement recommandé),
-# puis dans notebooks/ (emplacement legacy du projet original).
+# Chargement du ClassificationModeler (Logique métier complexe)
 MODELER_OK = False
 try:
     from src.models.ClassificationModeler import ClassificationModeler
@@ -120,24 +134,14 @@ except ImportError:
         MODELER_OK = True
     except ImportError:
         print("❌ ClassificationModeler introuvable.")
-        print("   → cp ClassificationModeler.py src/models/")
 
-# ── Base de données ────────────────────────────────────────────────────────
+# Vérification de la connexion Base de Données
 DB_AVAILABLE = False
 try:
     from src.database import get_engine
-    DB_AVAILABLE = True
+    DB_AVAILABLE = True                       # Connexion PostgreSQL possible
 except ImportError:
-    print("⚠️  src.database introuvable — mode CSV forcé")
-
-
-# ----------------------------------------------------------------------------
-# Bibliothèques spécifiques pour le déséquilibre
-# ----------------------------------------------------------------------------
-from   imblearn.over_sampling import SMOTE            # Génération synthétique
-from   imblearn.pipeline      import Pipeline         # Pipeline compatible SMOTE
-
-
+    print("⚠️  src.database introuvable — Mode CSV forcé")
 
 # ----------------------------------------------------------------------------
 DEBUG_ROW_LIMIT  = 10000                          # Limite de lignes en debug
@@ -582,6 +586,8 @@ class Phase3Pipeline:
         self.saved_model_paths:    Dict[str, str]     = {}
         self.saved_metadata_paths: Dict[str, str]     = {}
 
+        self.optimal_threshold = 0.5
+
     # ── Helpers ────────────────────────────────────────────────────────────
     def _log(self, msg: str, level: str = "INFO") -> None:
         if not self.verbose:
@@ -592,7 +598,7 @@ class Phase3Pipeline:
         }
         print(f"{icons.get(level, '• ')} {msg}")
 
-    def _sep(self, char: str = "=", n: int = 76) -> None:
+    def _sep(self, char: str = "#", n: int = 76) -> None:
         if self.verbose:
             print("\n" + char * n)
 
@@ -607,7 +613,7 @@ class Phase3Pipeline:
         Utilise MLflowConfig.ARTIFACTS_ROOT pour le chemin des artefacts.
         """
         self._sep()
-        self._log("Configuration MLflow ...", "STEP")
+        self._log("STEP 0. Configuration MLflow ...", "STEP")
 
         mlflow.set_tracking_uri(MLflowConfig.TRACKING_URI)
         mlflow.sklearn.autolog(disable=True)   # Logging 100% manuel
@@ -657,7 +663,7 @@ class Phase3Pipeline:
         Le jeu test Kaggle (sans TARGET) sera utilisé en Phase 5 (scoring).
         """
         self._sep()
-        self._log(f"Chargement données (source={self.source}) ...", "STEP")
+        self._log(f"STEP 1. Chargement données (source={self.source}) ...", "STEP")
 
         if self.source == "db":
             self._load_from_db()
@@ -667,7 +673,7 @@ class Phase3Pipeline:
         self._validate_data()
 
     def _load_from_db(self) -> None:
-        """Charge depuis PostgreSQL via v_features_engineering."""
+        """Charge les matrices pré-traitées (X, y) depuis PostgreSQL."""
         if not DB_AVAILABLE:
             self._log("DB non disponible — bascule sur CSV", "WARNING")
             self.source = "csv"
@@ -675,31 +681,44 @@ class Phase3Pipeline:
             return
 
         engine = get_engine()
+        limit_str = f"LIMIT {self.debug_limit}" if self.debug else ""
 
         if self.debug:
-            self._log(f"⚡ DEBUG MODE : {self.debug_limit} lignes", "WARNING")
-            query = f"""
-                SELECT *
-                FROM   v_features_engineering
-                WHERE  split = 'train'
-                  AND  sk_id_curr IN (
-                       SELECT sk_id_curr
-                       FROM   raw_application_train
-                       LIMIT  {self.debug_limit}
-                  )
-            """
-        else:
-            query = "SELECT * FROM v_features_engineering WHERE split = 'train'"
+            self._log(f"⚡ DEBUG MODE (DB) : {self.debug_limit} lignes", "WARNING")
 
-        self._log("v_features_engineering WHERE split='train' ...", "INFO")
+        # ─────────────────────────────────────────────────────────────────────
+        # 1. Construcción de la Query: Unimos X e y por posición (u orden)
+        # Nota: Asumimos que ml_X_train y ml_y_train guardan el mismo orden
+        # ─────────────────────────────────────────────────────────────────────
+        self._log("Lecture des tables ml_X_train et ml_y_train ...", "INFO")
         t0 = time.time()
-        self.df_raw = pd.read_sql(query, engine)
-        self._log(
-            f"Chargé en {time.time()-t0:.1f}s — "
-            f"{self.df_raw.shape[0]:,} lignes × {self.df_raw.shape[1]} colonnes",
-            "SUCCESS",
-        )
 
+        # En lugar de v_features_engineering, leemos las tablas transformadas
+        query_x = f'SELECT * FROM "ml_X_train" {limit_str}'
+        query_y = f'SELECT * FROM "ml_y_train" {limit_str}'
+
+        try:
+            X = pd.read_sql(query_x, engine)
+            y = pd.read_sql(query_y, engine).squeeze() # Squeeze para convertir a Serie
+            
+            # Aseguramos el nombre de la target para coherencia
+            y.name = self.target_col
+            
+            # ─────────────────────────────────────────────────────────────────────
+            # 2. Recomposición del df_raw
+            # ─────────────────────────────────────────────────────────────────────
+            # Concatenamos horizontalmente igual que en _load_from_csv()
+            self.df_raw = pd.concat([X, y], axis=1)
+
+            self._log(
+                f"Tables SQL chargées en {time.time()-t0:.1f}s — "
+                f"{self.df_raw.shape[0]:,} lignes × {self.df_raw.shape[1]} colonnes",
+                "SUCCESS",
+            )
+        except Exception as e:
+            self._log(f"Erreur lors du chargement SQL : {e}", "ERROR")
+            raise
+            
     def _load_from_csv(self) -> None:
         """Fallback : charge depuis les exports de Phase 2 (data/processed/)."""
         
@@ -740,6 +759,8 @@ class Phase3Pipeline:
             "SUCCESS"
         )
 
+
+            
     def _validate_data(self) -> None:
         """Vérifie la présence de la TARGET et affiche la distribution des classes."""
         if self.target_col not in self.df_raw.columns:
@@ -790,7 +811,7 @@ class Phase3Pipeline:
         """
         self._sep()
         self._log(
-            f"Split stratifié — train {1-self.eval_ratio:.0%} / eval {self.eval_ratio:.0%} ...",
+            f"STEP 2. Split stratifié — train {1-self.eval_ratio:.0%} / eval {self.eval_ratio:.0%} ...",
             "STEP",
         )
 
@@ -840,7 +861,7 @@ class Phase3Pipeline:
         La CV 5-plis s'effectue sur X_train / y_train uniquement.
         """
         self._sep()
-        self._log("Initialisation ClassificationModeler ...", "STEP")
+        self._log("STEP 3. Initialisation ClassificationModeler ...", "STEP")
 
         if not MODELER_OK:
             raise ImportError(
@@ -881,7 +902,7 @@ class Phase3Pipeline:
              → tags, params, métriques, modèle, artefacts
         """
         self._sep()
-        self._log("Entraînement de tous les modèles ...", "STEP")
+        self._log("STEP 4. Entraînement de tous les modèles ...", "STEP")
 
         if self.modeler is None:
             self.step3_init_modeler()
@@ -1148,7 +1169,7 @@ class Phase3Pipeline:
         AUC-ROC reste la métrique académique de référence.
         """
         self._sep()
-        self._log("Comparaison des modèles ...", "STEP")
+        self._log("STEP 5. Comparaison des modèles ...", "STEP")
 
         if not self.results:
             self._log("Aucun modèle entraîné.", "ERROR")
@@ -1224,7 +1245,7 @@ class Phase3Pipeline:
           • models/<nom>_metadata.json  → métriques, params, feature names, run_id
         """
         self._sep()
-        self._log("Sauvegarde des modèles ...", "STEP")
+        self._log("STEP 6. Sauvegarde des modèles ...", "STEP")
 
         self.models_dir.mkdir(parents=True, exist_ok=True)
         noms = list(self.results.keys()) if save_all else [self.best_model_name]
@@ -1260,7 +1281,7 @@ class Phase3Pipeline:
                 "target_rate":   float(self.y_train.mean()),
                 "mlflow_run_id": self.mlflow_runs.get(nom),
                 "model_path":    str(path_model),
-                "saved_at":      datetime.now().isoformat(),
+                "saved_at":      datetime.datetime.now().isoformat(),
             }
             path_meta = (self.models_dir / f"{nom}_metadata.json").absolute()
             with open(path_meta, "w", encoding="utf-8") as f:
@@ -1271,29 +1292,78 @@ class Phase3Pipeline:
 
         self._log(f"{len(noms)} modèle(s) dans {self.models_dir}/", "SUCCESS")
 
+    
     # ==========================================================================
-    # STEP 7 : REGISTRE POSTGRESQL (model_versions)
+    # STEP 7 : OPTIMISATION DU SEUIL MÉTIER (THRESHOLD)
     # ==========================================================================
 
-    def step7_register_db(self) -> None:
+    def step7_optimize_threshold(self) -> float:
+        """
+        Détermine le seuil de probabilité optimal pour maximiser le F2-Score.
+        Note: Le seuil 0.5 est rarement optimal pour les classes
+        déséquilibrées (8% de target=1).
+        """
+        self._sep()
+        self._log(f"STEP 7. Optimisation du seuil pour : {self.best_model_name}", "STEP")
+
+        if not self.best_model_name or self.best_model_name not in self.results:
+            self._log("Aucun champion sélectionné pour l'optimisation.", "ERROR")
+            return 0.5
+
+        # Récupération des probabilités de la classe 1 (défaut) sur le set Eval
+        res     = self.results[self.best_model_name]
+        y_probs = res["predictions"]["y_test_proba"] # Sortie du modeler
+        y_true  = self.y_eval
+
+        meilleur_seuil = 0.5
+        meilleur_f2    = 0
+        
+        # Balayage fin : 100 seuils entre 0.05 et 0.80 (Zone critique)
+        thresholds = np.linspace(0.05, 0.80, 100)
+        
+        for seuil in thresholds:
+            y_pred = (y_probs >= seuil).astype(int)
+            # Optimisation sur F2 (Recall a 2x plus de poids que Precision)
+            score = fbeta_score(y_true, y_pred, beta=2)
+            
+            if score > meilleur_f2:
+                meilleur_f2    = score
+                meilleur_seuil = seuil
+
+        self._log(f"Seuil optimal trouvé..: {meilleur_seuil:.3f}", "SUCCESS")
+        self._log(f"Nouveau F2-Score.....: {meilleur_f2:.4f}", "INFO")
+        
+        # Mise à jour des métadonnées du champion
+        res["optimal_threshold"] = meilleur_seuil
+        self.optimal_threshold = meilleur_seuil
+        return meilleur_seuil
+        
+    # ==========================================================================
+    # STEP 8 : REGISTRE POSTGRESQL (model_versions)
+    # ==========================================================================
+
+    def step8_register_db(self) -> None:
         """
         Enregistre le champion dans la table PostgreSQL model_versions.
 
         Prérequis SQL (à créer une seule fois) :
-        ─────────────────────────────────────────
-            CREATE TABLE IF NOT EXISTS model_versions (
-                id              SERIAL PRIMARY KEY,
-                model_name      TEXT NOT NULL,
-                version         TEXT NOT NULL UNIQUE,
-                mlflow_run_id   TEXT,
-                algorithm       TEXT,
-                hyperparameters JSONB,
-                metrics         JSONB,
-                model_path      TEXT,
-                metadata_path   TEXT,
-                status          TEXT DEFAULT 'trained',
-                created_at      TIMESTAMPTZ DEFAULT NOW()
-            );
+        ──────────────────────────────────────────────────────────────────
+        CREATE TABLE IF NOT EXISTS model_versions (
+            id                SERIAL       PRIMARY KEY,
+            model_name        VARCHAR(255) NOT NULL,
+            version           VARCHAR(50)  NOT NULL UNIQUE,
+            mlflow_run_id     VARCHAR(255),
+            algorithm         VARCHAR(100),
+            hyperparameters   JSONB,       -- Paramètres d'entraînement
+            metrics           JSONB,       -- Scores (AUC, F2, etc.)
+            optimal_threshold FLOAT        DEFAULT 0.5, -- Le "cerveau" métier
+            model_path        TEXT         NOT NULL,    -- Fichier .joblib
+            metadata_path     TEXT         NOT NULL,    -- Fichier .json
+            status            VARCHAR(50)  DEFAULT 'trained',
+            created_at        TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+            deployed_at       TIMESTAMP,
+            CONSTRAINT unique_model_version UNIQUE (model_name, version)
+        );
         """
         if not DB_AVAILABLE or not self.best_model_name:
             self._log("Enregistrement DB ignoré (DB non dispo ou aucun champion).", "WARNING")
@@ -1301,19 +1371,19 @@ class Phase3Pipeline:
 
         self._sep()
         self._log(
-            f"Enregistrement champion [{self.best_model_name}] dans PostgreSQL ...",
+            f"STEP 8. Enregistrement champion [{self.best_model_name}] dans PostgreSQL ...",
             "STEP",
         )
         try:
             engine = get_engine()
             res    = self.results[self.best_model_name]
-            version = f"v_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            version = f"v_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
             # 1. Préparation des données (On sérialise en string JSON ici)
             # ----------------------------------------------------------------
             params_dict = {k: str(v) for k, v in res["modele"].get_params().items()}
             
-            # Note de Dario Amodei : On s'assure que les métriques sont propres
+            # Note: On s'assure que les métriques sont propres
             metrics_dict = {k: float(v) if isinstance(v, (int, float, np.number)) else str(v) 
                            for k, v in res["scores_test"].items()}
 
@@ -1324,6 +1394,7 @@ class Phase3Pipeline:
                 "algo":       type(res["modele"]).__name__,
                 "params":     json.dumps(params_dict),
                 "metrics":    json.dumps(metrics_dict),
+                "threshold":  float(getattr(self, "optimal_threshold", 0.5)),
                 "model_path": self.saved_model_paths.get(self.best_model_name, ""),
                 "meta_path":  self.saved_metadata_paths.get(self.best_model_name, ""),
                 "status":     "trained",
@@ -1334,10 +1405,10 @@ class Phase3Pipeline:
             sql = text("""
                 INSERT INTO model_versions 
                     (model_name, version, mlflow_run_id, algorithm, 
-                     hyperparameters, metrics, model_path, metadata_path, status)
+                     hyperparameters, metrics, optimal_threshold, model_path, metadata_path, status)
                 VALUES 
                     (:name, :version, :run_id, :algo, 
-                     CAST(:params AS JSONB), CAST(:metrics AS JSONB), 
+                     CAST(:params AS JSONB), CAST(:metrics AS JSONB), :threshold, 
                      :model_path, :meta_path, :status)
             """)
 
@@ -1349,81 +1420,10 @@ class Phase3Pipeline:
         except Exception as exc:
             self._log(f"❌ Erreur DB : {exc}", "ERROR")
 
+        
 # ##############################################################################
 # FONCTION PRINCIPALE
 # ##############################################################################
-
-def run_phase3(
-    source:          str   = "db",                # Source : 'db' ou 'csv'
-    eval_ratio:      float = 0.20,                # Proportion du set d'éval
-    random_state:    int   = RANDOM_SEED,         # Graine aléatoire centrale
-    debug:           bool  = False,               # Mode test rapide
-    debug_limit:     int   = DEBUG_ROW_LIMIT,     # Limite via constante
-    save_all:        bool  = False,               # Sauvegarde de tous les modèles
-    experiment_name: str   = DEFAULT_EXP_NAME,    # Nom du tracking MLflow
-    verbose:         bool  = True                 # Affichage des logs
-) -> Phase3Pipeline:
-    """
-    Exécute la Phase 3 complète.
-
-    Args:
-        source          : "db" → PostgreSQL, "csv" → data/processed/
-        eval_ratio      : Fraction holdout eval (défaut 0.20)
-        random_state    : Graine aléatoire (défaut 42)
-        debug           : Mode debug (charge seulement debug_limit lignes)
-        debug_limit     : Nb lignes en mode debug (défaut {DEBUG_ROW_LIMIT} )
-        save_all        : Sauvegarder tous les modèles (défaut : champion seul)
-        experiment_name : Nom expérience MLflow
-        verbose         : Logs détaillés
-
-    Returns:
-        Instance Phase3Pipeline avec .results, .best_model_name, .mlflow_runs.
-    """
-    print("\n" + "=" * 76)
-    print("🚀 PHASE 3 — CLASSIFICATION + MLFLOW TRACKING")
-    print("   Projet : Prêt à Dépenser — Home Credit Default Risk")
-    print("=" * 76)
-
-    pipeline = Phase3Pipeline(
-        source=source,
-        eval_ratio=eval_ratio,
-        random_state=random_state,
-        debug=debug,
-        debug_limit=debug_limit,
-        experiment_name=experiment_name,
-        verbose=verbose,
-    )
-
-    try:
-        pipeline.step0_setup_mlflow()
-        pipeline.step1_load_data()
-        pipeline.step2_split()
-        pipeline.step3_init_modeler()
-        pipeline.step4_train_all()
-        pipeline.step5_compare()
-        pipeline.step6_save(save_all=save_all)
-        pipeline.step7_register_db()
-
-        print("\n" + "=" * 76)
-        print("✅ PHASE 3 TERMINÉE AVEC SUCCÈS")
-        print("=" * 76)
-        print(f"  Modèles entraînés  : {len(pipeline.results)}")
-        print(f"  Champion           : {pipeline.best_model_name}")
-        print(f"  Modèles sauvegardés: {pipeline.models_dir}/")
-        print(f"  MLflow UI          : {MLflowConfig.TRACKING_URI}")
-        print(f"  Expérience         : {pipeline.experiment_name}")
-        print()
-        print("  ⮕  Suite : Phase 4 — Optimisation hyperparamètres + seuil métier")
-        print("     uv run python -m src.pipelines.phase4_hyperparameter_tuning")
-        print("=" * 76)
-
-        return pipeline
-
-    except Exception as exc:
-        print(f"\n❌ ERREUR Phase 3 : {exc}")
-        traceback.print_exc()
-        raise
-
 
 def run_phase3(
     source:          str   = "db",                # Source des données
@@ -1451,8 +1451,7 @@ def run_phase3(
     Returns:
         Instance Phase3Pipeline avec .results, .best_model_name, .mlflow_runs.
     """
-    import time                                   # Pour le chronométrage
-    import datetime                               # Pour le formatage HH:MM:SS
+
 
     print("\n" + "=" * 76)
     print("🚀 PHASE 3 — CLASSIFICATION + MLFLOW TRACKING")
@@ -1481,8 +1480,9 @@ def run_phase3(
         pipeline.step4_train_all()
         pipeline.step5_compare()
         pipeline.step6_save(save_all=save_all)
-        pipeline.step7_register_db()
-
+        pipeline.step7_optimize_threshold()
+        pipeline.step8_register_db()
+        
         # Calcul de la durée totale
         t_end    = time.time()                    # Temps de fin
         duration = t_end - t_start                # Delta en secondes
@@ -1506,7 +1506,6 @@ def run_phase3(
 
     except Exception as exc:
         print(f"\n❌ ERREUR Phase 3 : {exc}")
-        import traceback
         traceback.print_exc()
         raise
     

@@ -1,0 +1,328 @@
+@startuml phase4_sequence_diagram
+!theme plain
+skinparam backgroundColor #FAFAFA
+skinparam sequence {
+    ActorBackgroundColor    #2E86AB
+    ActorBorderColor        #1A5276
+    ActorFontColor          white
+    ActorFontSize           11
+    ActorFontStyle          bold
+
+    ParticipantBackgroundColor #EBF4FB
+    ParticipantBorderColor     #2E86AB
+    ParticipantFontSize        10
+    ParticipantFontStyle       bold
+
+    LifeLineBackgroundColor    #F8FBFF
+    LifeLineBorderColor        #AED6F1
+
+    MessageFontSize            9
+    MessageFontColor           #1A252F
+
+    ArrowColor                 #2E86AB
+    ArrowFontSize              9
+
+    DividerBackgroundColor     #D5E8D4
+    DividerBorderColor         #82B366
+    DividerFontSize            11
+    DividerFontStyle           bold
+    DividerFontColor           #1A3A1A
+
+    GroupBackgroundColor       #FFF9C4
+    GroupBorderColor           #F4A261
+    GroupFontSize              10
+    GroupFontStyle             bold
+    GroupHeaderFontColor       #7D4000
+
+    BoxBackgroundColor         #F5EEF8
+    BoxBorderColor             #8E44AD
+    NoteBackgroundColor        #E8F8F5
+    NoteBorderColor            #1ABC9C
+    NoteFontSize               9
+}
+
+title <size:15><b>Phase 4 — Séquence complète : Services · Répertoires · Artefacts</b></size>\n<size:11>Prêt à Dépenser · Home Credit Default Risk</size>
+
+' ─── ACTEURS ────────────────────────────────────────────────────────────────
+actor        "Ingénieur\nData" as DEV
+
+box "Process Python" #EBF4FB
+    participant "CLI\nrun_phase4()" as CLI
+    participant "Phase4Pipeline" as P4
+end box
+
+box "Moteurs d'Optimisation" #FFF0F5
+    participant "GridSearchCV\n(sklearn)" as GS
+    participant "Optuna Study\n(TPE+Pruner)" as OPT
+end box
+
+box "Système de Fichiers" #F0FFF4
+    participant "data/\nprocessed/" as FS_DATA
+    participant "models/" as FS_MODELS
+    participant "reports/" as FS_REPORTS
+end box
+
+box "Services Externes" #FFF8E8
+    participant "PostgreSQL\n:5432" as PG
+    participant "MLflow\n:5001" as MLF
+end box
+
+' ─── PRÉREQUIS ───────────────────────────────────────────────────────────────
+== 📋 Prérequis Phase 3 déjà exécutée ==
+
+note over FS_MODELS
+    <b>Entrées attendues</b>
+    ─────────────────────────────────
+    models/<champion>_model.joblib
+    models/<champion>_metadata.json
+    ─────────────────────────────────
+    <i>Produits par Phase 3</i>
+end note
+
+note over FS_DATA
+    <b>Données Phase 2</b>
+    ──────────────────────────────
+    data/processed/X_train.csv
+    data/processed/y_train.csv
+    ──────────────────────────────
+    <i>Produits par Phase 2</i>
+end note
+
+note over PG
+    <b>Tables PostgreSQL</b>
+    ─────────────────────────────
+    v_features_engineering (VIEW)
+    model_versions
+    monitoring_metrics
+    ─────────────────────────────
+    <i>Créées par Phase 1</i>
+end note
+
+note over MLF
+    <b>Expérience MLflow</b>
+    ──────────────────────────
+    Smart_Credit_Scoring_Phase4
+    mlflow/artifacts/
+    mlruns/
+    ──────────────────────────
+    <i>Serveur Docker :5001</i>
+end note
+
+' ─── STEP 0 ──────────────────────────────────────────────────────────────────
+== STEP 0 · Configuration MLflow ==
+
+DEV   -> CLI   : uv run python -m src.pipelines.phase4_hyperparameter_tuning\n<size:9>--engine both --n-trials 50 --source db</size>
+CLI   -> P4    : Phase4Pipeline(\n  engine="both", n_trials=50,\n  cv_folds=5, random_state=42\n)
+P4    -> MLF   : GET /api/2.0/mlflow/experiments/get-by-name\n"Smart_Credit_Scoring_Phase4"
+MLF  --> P4    : experiment_id (créé si absent)
+note right of MLF : ✅ experiment_id stocké\ndans self.experiment_id
+
+' ─── STEP 1 ──────────────────────────────────────────────────────────────────
+== STEP 1 · Charger Champion Phase 3 ==
+
+P4    -> FS_MODELS : Scan *_metadata.json → is_best=True
+FS_MODELS --> P4   : champion_name = "lightgbm" (ex.)
+P4    -> FS_MODELS : load("lightgbm_model.joblib")
+FS_MODELS --> P4   : champion_model (LGBMClassifier)
+P4    -> FS_MODELS : read("lightgbm_metadata.json")
+FS_MODELS --> P4   : champion_metadata {\n  eval_metrics: {f2: 0.62, roc_auc: 0.82}\n  feature_names: [300 colonnes]\n  mlflow_run_id: "abc123..."\n  n_features: 300\n}
+
+note right of P4 : F2 Phase 3 = 0.6200\n← baseline de référence
+
+' ─── STEP 2 ──────────────────────────────────────────────────────────────────
+== STEP 2 · Charger Données ==
+
+P4    -> PG : SELECT * FROM v_features_engineering\nWHERE split='train'
+PG   --> P4 : DataFrame ~240 000 lignes × 303 colonnes
+
+note right of PG : Fallback CSV si DB\nindisponible
+
+P4    -> P4 : Nettoyage colonnes meta\ntrain_test_split(stratify, rs=42)
+note right of P4 : X_train : ~192 000 × 300\nX_eval  :  ~48 000 × 300\nDéfauts : 8.07%\n⚠️ même random_state que Phase 3
+
+' ─── STEP 3 ──────────────────────────────────────────────────────────────────
+== STEP 3 · GridSearchCV ==
+
+P4    -> GS : GridSearchCV(\n  base_model=LGBMClassifier(class_weight='balanced')\n  param_grid=get_gridsearch_param_grid("lightgbm")\n  scoring=F2_scorer\n  cv=StratifiedKFold(5)\n  refit=True\n  n_jobs=-1\n)
+
+note over GS : <b>Grille LightGBM</b>\nn_estimators : [200, 300, 500]\nlearning_rate : [0.03, 0.05, 0.10]\nnum_leaves    : [31, 50, 80]\nmax_depth     : [5, 6, 8]\n─────────────────────\n3×3×3×3 = 81 combos\n81 × 5 plis = 405 fits
+
+GS   --> P4 : best_estimator_ (déjà refit sur X_train)\nbest_params_, best_score_ (CV F2)
+
+P4    -> P4 : Évaluer sur X_eval @ seuil 0.5\n→ eval_f2, eval_f1, recall, precision, auc
+
+P4    -> FS_REPORTS : Écrire phase4_gs_cv_results_lightgbm.csv\n<size:9>81 lignes × colonnes CV sklearn</size>
+
+P4    -> MLF : start_run("lightgbm_gridsearch_opt")\n  set_tags(phase4, engine=gridsearch, champion=lightgbm)\n  log_params(opt_n_estimators, opt_num_leaves...)\n  log_params(cv_folds=5, target_rate=0.0807...)\n  log_metric(cv_f2_best)\n  log_metric(eval_f2, eval_recall, eval_auc...)\n  log_metric(phase3_baseline_f2=0.62)\n  log_metric(delta_f2_vs_phase3)\n  sklearn.log_model(best_estimator_, "model")\n  log_input(train_set, eval_set)\nend_run()
+MLF  --> P4 : run_id_gridsearch = "gs_run_abc..."
+
+note right of MLF : ⚠️ Run FERMÉ ici\nseuil non encore calculé\n→ post-run logging en step6
+
+' ─── STEP 4 ──────────────────────────────────────────────────────────────────
+== STEP 4 · Optuna (TPE + Pruning) ==
+
+P4    -> OPT : create_study(\n  direction="maximize"\n  sampler=TPESampler(seed=42)\n  pruner=MedianPruner(startup=5, warmup=3)\n)
+
+loop n_trials = 50 fois
+    OPT   -> OPT : Trial #N\nTPE propose hyperparamètres\n<size:9>n_estimators ∈ [100, 600] (int)\nlearning_rate ∈ [0.01, 0.3] (log)\nnum_leaves ∈ [20, 150] (int)\nmax_depth ∈ [3, 10] (int)\nreg_alpha ∈ [1e-8, 10] (log)</size>
+    OPT   -> P4  : params[trial]
+    P4    -> P4  : build_model_from_params(lightgbm, params)\ncross_val_score(StratifiedKFold(5))\n→ return cv_f2_mean
+    P4   --> OPT : score du trial
+    OPT   -> OPT : MedianPruner ?\n<size:9>→ TrialPruned si score < médiane</size>\nMise à jour modèle interne TPE
+end
+
+OPT  --> P4 : best_trial.params\nbest_trial.value (meilleur CV F2)
+P4    -> P4 : build_model_from_params(best_params)\n.fit(X_train, y_train)
+note right of P4 : Refit sur X_train (80%)\naprès sélection des params
+
+P4    -> P4 : Évaluer sur X_eval @ seuil 0.5\n→ eval_f2, eval_f1, recall, precision, auc
+
+P4    -> FS_REPORTS : joblib.dump(study)\n→ phase4_optuna_study_lightgbm.pkl\n<size:9>Pour visualisations notebook\n(plot_optimization_history, etc.)</size>
+
+P4    -> MLF : start_run("lightgbm_optuna_opt")\n  set_tags(phase4, engine=optuna...)\n  log_params(opt_*, n_trials=50, n_pruned=12, n_complete=38)\n  log_metric(cv_f2_best)\n  log_metric(eval_f2, eval_recall, eval_auc...)\n  log_metric(phase3_baseline_f2, delta_f2)\n  sklearn.log_model(best_model, "model")\nend_run()
+MLF  --> P4 : run_id_optuna = "opt_run_xyz..."
+
+' ─── STEP 5 ──────────────────────────────────────────────────────────────────
+== STEP 5 · Comparer & Sélectionner le Gagnant ==
+
+P4    -> P4 : best_engine = argmax(eval_f2)\n<size:9>ex: gridsearch F2=0.647 vs optuna F2=0.661\n→ winner = optuna</size>
+
+P4    -> MLF : set_tag(run_id_optuna, "phase4_winner", "true")
+
+note right of P4 : self.best_engine  = "optuna"\nself.best_params   = {n_estimators:420, lr:0.047...}\nself.best_model    = LGBMClassifier(**best_params)\n                     fitté sur X_train (80%)
+
+' ─── STEP 6 ──────────────────────────────────────────────────────────────────
+== STEP 6 · Optimisation Seuil Métier ==
+
+P4    -> P4 : best_model.predict_proba(X_eval)[:, 1]\n→ y_proba_eval (48 000 scores)
+
+note right of P4 : COUT_FN = 5 (défaut manqué)\nCOUT_FP = 1 (refus abusif)
+
+P4    -> P4 : Pour t in linspace(0.05, 0.80, 150) :\n  y_pred = (proba >= t)\n  confusion_matrix → TN,FP,FN,TP\n  cout = FN×5 + FP×1\n  f2 = fbeta_score(beta=2)\n  recall, precision, auc
+
+P4    -> P4 : optimal_threshold = t où cout_metier min\n<size:9>→ ex: 0.287 (au lieu de 0.5)</size>
+
+P4    -> FS_REPORTS : Écrire phase4_threshold_curve.csv\n<size:9>150 lignes × {threshold, f2, f1, recall,\nprecision, cout_metier, fn, fp, tn, tp}</size>
+
+note over FS_REPORTS
+    📊 <b>Artefact clé pour le notebook</b>
+    Visualisation courbe coût vs seuil
+    Comparaison seuil 0.5 vs optimal
+end note
+
+P4    -> MLF : POST-RUN log sur run_id_optuna (run fermé)\n  log_metric("optimal_threshold", 0.287)\n  log_metric("threshold_f2", 0.721)\n  log_metric("threshold_recall", 0.834)\n  log_metric("threshold_precision", 0.412)\n  log_metric("threshold_roc_auc", 0.861)\n  log_metric("cout_metier_at_threshold", 1240)\n  log_metric("cout_metier_at_default_05", 1890)\n  log_metric("cout_saved_vs_default", 650)\n  set_tag("threshold_optimized", "true")\n  set_tag("optimal_threshold_value", "0.2870")\n  log_artifact(threshold_curve.csv)
+
+note right of MLF : ✅ Run enrichi\naprès fermeture\n← pattern MLflow valide
+
+' ─── STEP 5b ─────────────────────────────────────────────────────────────────
+== STEP 5b · Refit Final sur 100% des Données ==
+
+P4    -> P4 : X_full = concat([X_train, X_eval])  → 240 000 lignes\ny_full = concat([y_train, y_eval])
+
+P4    -> P4 : refitted = sklearn_clone(best_model)\nrefitted.set_params(**best_params)\nrefitted.fit(X_full, y_full)
+
+note right of P4 : ⚠️ APRÈS ce step\nX_eval est dans le modèle\n→ ne plus évaluer sur X_eval !\nLes métriques sont celles du step6
+
+P4    -> MLF : set_tag(run_id_optuna, "refit_on_full_data", "true")\nlog_metric("refit_train_size", 240000)
+
+note right of P4 : self.best_model = refitted\n(fitté sur 100% des données)
+
+' ─── STEP 7 ──────────────────────────────────────────────────────────────────
+== STEP 7 · Sauvegarder ==
+
+P4    -> FS_MODELS : joblib.dump(refitted)\n→ phase4_best_model.joblib
+
+note over FS_MODELS
+    📦 <b>Modèle de production</b>
+    Fitté sur 100% des données
+    Prêt pour Phase 5 (BentoML / API)
+end note
+
+P4    -> P4 : Calculer eval_at_threshold\n(depuis métriques step6 stockées)
+
+P4    -> FS_MODELS : json.dump(metadata)\n→ phase4_best_model_metadata.json\n<size:9>{\n  model_name, champion_phase3, model_class\n  optimization_engine: "optuna"\n  best_params: {n_estimators:420, lr:0.047...}\n  phase3_eval_f2: 0.6200  ← baseline\n  phase4_eval_metrics: {f2:0.661...}  ← seuil 0.5\n  phase4_eval_at_threshold: {f2:0.721...}  ← seuil opt\n  optimal_threshold: 0.287\n  cout_fn: 5  cout_fp: 1\n  feature_names: [300 colonnes]\n  n_features: 300\n  train_samples: 192000  eval_samples: 48000\n  mlflow_run_ids: {optuna: "opt_run_xyz..."}\n  model_path: ".../phase4_best_model.joblib"\n  saved_at: "2026-02-24T14:32:01"\n}</size>
+
+P4    -> MLF : log_param(run_id_optuna, "optimal_threshold_final", 0.287)\nlog_artifact(run_id_optuna, phase4_best_model.joblib)\nlog_artifact(run_id_optuna, phase4_best_model_metadata.json)
+
+' ─── STEP 8 ──────────────────────────────────────────────────────────────────
+== STEP 8 · Registre PostgreSQL ==
+
+P4    -> PG : INSERT INTO model_versions (\n  model_name       = "phase4_lightgbm"\n  version          = "v_phase4_20260224_143201"\n  mlflow_run_id    = "opt_run_xyz..."\n  algorithm        = "LGBMClassifier"\n  hyperparameters  = {n_estimators:420...}  JSONB\n  metrics          = {f2:0.721, recall:0.834,\n                      optimal_threshold:0.287,\n                      refit_on_full_data:true} JSONB\n  optimal_threshold = 0.287\n  model_path       = ".../phase4_best_model.joblib"\n  metadata_path    = ".../phase4_best_model_metadata.json"\n  status           = "optimized"\n) RETURNING id
+
+PG   --> P4 : model_version_id = 42
+note right of P4 : self.model_version_id = 42\n← utilisé par step9
+
+' ─── STEP 9 ──────────────────────────────────────────────────────────────────
+== STEP 9 · Benchmarks Monitoring ==
+
+P4    -> PG : INSERT INTO monitoring_metrics (×5)\n  (metric_name="ref_f2_score",   value=0.721)\n  (metric_name="ref_auc_roc",    value=0.861)\n  (metric_name="ref_recall",     value=0.834)\n  (metric_name="ref_precision",  value=0.412)\n  (metric_name="ref_threshold",  value=0.287)\n  metric_type="performance_benchmark"\n  model_version_id=42
+
+note right of PG : Ces valeurs = seuils d'alerte\npour la Phase 5 (monitoring)\nSi F2 drift < 0.721 → alerte !
+
+' ─── RÉSUMÉ ARTEFACTS ────────────────────────────────────────────────────────
+== ✅ Résumé des Artefacts Produits ==
+
+note over FS_MODELS
+    <b>models/</b>
+    ─────────────────────────────────────────────
+    phase4_best_model.joblib          ← modèle sklearn (100% data)
+    phase4_best_model_metadata.json   ← métriques + seuil + traçabilité
+    ─────────────────────────────────────────────
+    <i>Utilisés par Phase 5 (API BentoML)</i>
+end note
+
+note over FS_REPORTS
+    <b>reports/</b>
+    ────────────────────────────────────────────────────
+    phase4_gs_cv_results_lightgbm.csv    ← heatmaps notebook
+    phase4_optuna_study_lightgbm.pkl     ← visualisations Optuna
+    phase4_threshold_curve.csv           ← courbe coût vs seuil
+    ────────────────────────────────────────────────────
+    <i>Utilisés par notebooks/04_hyperparameter_visualization.ipynb</i>
+end note
+
+note over MLF
+    <b>MLflow Run : lightgbm_optuna_opt</b>
+    ───────────────────────────────────────────
+    Tags     : phase4_winner, threshold_optimized
+               refit_on_full_data, optimal_threshold_value
+    Params   : opt_n_estimators, opt_learning_rate...
+               cv_folds, target_rate, n_features...
+               optimal_threshold_final
+    Métriques: cv_f2_best, eval_f2, eval_recall...
+               phase3_baseline_f2, delta_f2_vs_phase3
+               optimal_threshold, threshold_f2...
+               cout_metier_at_threshold, cout_saved
+               refit_train_size
+    Artefacts: model/ (sklearn)
+               phase4_best_model.joblib
+               phase4_best_model_metadata.json
+               phase4_threshold_curve.csv
+    ───────────────────────────────────────────
+    <i>URL: http://localhost:5001</i>
+end note
+
+note over PG
+    <b>PostgreSQL</b>
+    ─────────────────────────────────────────
+    model_versions [1 nouvelle ligne]
+      → version: v_phase4_20260224_143201
+      → status:  "optimized"
+      → optimal_threshold: 0.287
+    monitoring_metrics [5 nouvelles lignes]
+      → ref_f2_score, ref_auc_roc
+      → ref_recall, ref_precision
+      → ref_threshold
+    ─────────────────────────────────────────
+end note
+
+DEV  <-- P4 : pipeline.best_model\n       pipeline.optimal_threshold = 0.287\n       pipeline.eval_metrics\n       pipeline.mlflow_run_ids
+
+note over DEV
+    <b>⮕  Phase 5</b>
+    BentoML wrapping du modèle
+    API REST : predict avec seuil 0.287
+    Score Kaggle test set
+end note
+
+@enduml
