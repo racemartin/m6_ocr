@@ -44,7 +44,7 @@ from   src.database          import get_engine          # DB PostgreSQL
 from   src.data.schema       import REGISTRY            # Registre des features
 from   src.data.schema       import ColumnType
 from   src.features.registry import FeatureConfigurator # Pipeline sklearn
-
+from tqdm import tqdm
 
 
 # ############################################################################
@@ -398,21 +398,34 @@ def run_phase2(
         print("\n[10.1] Exportation des matrices vers PostgreSQL ...")
         try:
             engine = get_engine()
+            CHUNK_SIZE = 10000 
             
-            # Guardar X_train
-            X_train.to_sql('ml_X_train', engine, if_exists='replace', index=False)
-            print(f"    Table 'ml_X_train'......: {X_train.shape} [OK]")
+            # Función auxiliar para subir con barra de progreso
+            def to_sql_with_progress(df, name, engine):
+                total_rows = len(df)
+                
+                with tqdm(total=total_rows, desc=f"    Envoi {name}", unit="rows") as pbar:
+                    # On parcourt le DataFrame par pas de CHUNK_SIZE
+                    for i in range(0, total_rows, CHUNK_SIZE):
+                        # Sélection du morceau (chunk)
+                        chunk = df.iloc[i : i + CHUNK_SIZE]
+                        
+                        # Le premier chunk (i=0) remplace la table, les autres ajoutent
+                        mode = 'replace' if i == 0 else 'append'
+                        
+                        # Envoi vers PostgreSQL
+                        chunk.to_sql(name, engine, if_exists=mode, index=False)
+                        
+                        # Mise à jour de la barre de progression
+                        pbar.update(len(chunk))
+
+            # Ejecutar para cada tabla
+            to_sql_with_progress(X_train, 'ml_X_train', engine)
+            to_sql_with_progress(X_test, 'ml_X_test', engine)
             
-            # Guardar X_test
-            X_test.to_sql('ml_X_test', engine, if_exists='replace', index=False)
-            print(f"    Table 'ml_X_test'.......: {X_test.shape} [OK]")
-            
-            # Guardar y_train
             if y_train is not None:
-                # Convertimos a DataFrame si es una Serie para asegurar la compatibilidad con to_sql
                 y_df = y_train.to_frame() if isinstance(y_train, pd.Series) else y_train
-                y_df.to_sql('ml_y_train', engine, if_exists='replace', index=False)
-                print(f"    Table 'ml_y_train'......: {y_df.shape} [OK]")
+                to_sql_with_progress(y_df, 'ml_y_train', engine)
                 
         except Exception as e:
             print(f"    ❌ Erreur lors de l'export DB : {e}")

@@ -503,6 +503,15 @@ def _build_models_config_V0(random_state: int = 42) -> Dict:
 
     return cat
 
+def calcul_score_metier(y_true, y_proba, seuil: float, cout_fn: int = 10, cout_fp: int = 1):
+    """
+    Score métier = cout_fn × FN + cout_fp × FP
+    Objectif : MINIMISER ce score.
+    """
+    from sklearn.metrics import confusion_matrix
+    y_pred = (y_proba >= seuil).astype(int)
+    tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+    return int(cout_fn * fn + cout_fp * fp), int(fn), int(fp), float(seuil)
 
 # ##############################################################################
 # PIPELINE PRINCIPAL
@@ -1181,6 +1190,14 @@ class Phase3Pipeline:
             se = res["scores_test"]    # scores sur eval set (holdout)
             sc = res["scores_cv"]
 
+            y_proba = res["predictions"]["y_test_proba"]
+            y_true  = self.y_eval
+
+            # Barrer seuils para encontrar el óptimo métier
+            seuils = np.linspace(0.05, 0.80, 100)
+            scores_m = [calcul_score_metier(y_true, y_proba, s) for s in seuils]
+            score_min, fn_opt, fp_opt, seuil_opt = min(scores_m, key=lambda x: x[0])
+
             rows.append({
                 "Modèle":           nom,
                 "AUC-ROC(eval)":    round(se.get("roc_auc",   np.nan), 4),
@@ -1192,6 +1209,10 @@ class Phase3Pipeline:
                 "F1 CV mean":       round(sc.get("f1", {}).get("cv_moyenne", np.nan), 4),
                 "F1 CV std":        round(sc.get("f1", {}).get("cv_ecart",   np.nan), 4),
                 "Overfit ΔF1":      round(st["f1"] - se.get("f1", 0), 4),
+                "Score Métier":     score_min,           # ← 10×FN + FP (minimiser)
+                "Seuil Métier":     round(seuil_opt, 3), # ← seuil optimal
+                "FN opt":           fn_opt,
+                "FP opt":           fp_opt,
                 "Train (s)":        round(res["temps_train"], 2),
                 "Overfitting":      "❗" if res["surapprentissage"] else "✅",
                 "MLflow Run":       self.mlflow_runs.get(nom, "")[:8],
@@ -1290,6 +1311,19 @@ class Phase3Pipeline:
 
             self._log(f"  ✓ {nom:<30} → {path_model.name}", "INFO")
 
+        
+        ## Sauvegarde des datasets used as Train/Test
+        data_bundle = {
+            'X_train'  : self.X_train,
+            'y_train'  : self.y_train,
+            'X_test'   : self.X_eval,    
+            'y_test'   : self.y_eval
+        }
+        
+        joblib.dump(data_bundle, self.models_dir / "split_data_score.joblib", compress=3)
+        print("✅ Datos split saved.")
+
+        
         self._log(f"{len(noms)} modèle(s) dans {self.models_dir}/", "SUCCESS")
 
     
@@ -1332,7 +1366,19 @@ class Phase3Pipeline:
 
         self._log(f"Seuil optimal trouvé..: {meilleur_seuil:.3f}", "SUCCESS")
         self._log(f"Nouveau F2-Score.....: {meilleur_f2:.4f}", "INFO")
+
+        # Después de encontrar meilleur_seuil (F2), calcular el score métier en ese seuil
+        score_m, fn, fp, _ = calcul_score_metier(y_true, y_probs, meilleur_seuil)
         
+        self._log(f"Score Métier (seuil F2).: {score_m}  (FN={fn}, FP={fp})", "INFO")
+        self._log(f"  = 10×{fn} + 1×{fp} = {10*fn} + {fp} = {score_m}", "INFO")
+
+        # Loguearlo en MLflow del run del champion
+        best_run = self.mlflow_runs.get(self.best_model_name)
+        if best_run:
+            self.mlflow_client.log_metric(best_run, "score_metier_optimal", score_m)
+            self.mlflow_client.log_metric(best_run, "seuil_metier_optimal", meilleur_seuil)
+    
         # Mise à jour des métadonnées du champion
         res["optimal_threshold"] = meilleur_seuil
         self.optimal_threshold = meilleur_seuil

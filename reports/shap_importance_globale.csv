@@ -1,0 +1,11 @@
+Feature,SHAP_mean_abs
+standard__ext_source_3,0.3309310008114503
+standard__ext_source_2,0.3274333365254554
+standard__ext_source_1,0.14570411600599045
+log__amt_goods_price,0.0986874357157391
+standard__days_employed,0.08481276548625492
+ohe__code_gender_m,0.07748078140642445
+standard__days_birth,0.07727366072117652
+log__amt_credit,0.07628895227217435
+standard__install_payment_ratio_mean,0.07114603710488866
+ohe__name_education_type_higher_education,0.07086039101415872
