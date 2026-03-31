@@ -1,10 +1,50 @@
-# local package
--e .
+# =============================================================================
+# requirements.txt — Dépendances Python du projet M7 MLOps Partie 2/2
+# Versions épinglées pour la reproductibilité du déploiement HuggingFace.
+# =============================================================================
 
-# external requirements
+# --- external requirements ---------------------------------------------------
 click
 Sphinx
 coverage
-awscli
+awscli>=1.30.0
 flake8
 python-dotenv>=0.5.1
+
+# --- API FastAPI --------------------------------------------------------------
+fastapi          ==0.115.0   # Cadre API asynchrone haute performance
+uvicorn          ==0.30.6    # Serveur ASGI pour FastAPI
+pydantic         ==2.8.2     # Validation des données et schémas JSON
+pydantic-settings==2.4.0     # Gestion des variables d'environnement
+
+# --- Inférence ONNX Runtime --------------------------------------------------
+onnx             >= 1.16.0   # mapping fue reorganizado en 1.15
+#onnxruntime     ==1.19.2    # Runtime ONNX CPU (inférence rapide)
+onnxruntime      >= 1.19.0
+numpy            ==1.26.4    # Manipulation des tenseurs d'entrée
+
+# onnxmltools es crítico para registrar el convertidor de LightGBM
+onnxmltools>=1.11.0
+
+# --- Conversion ONNX (scripts locaux uniquement) -----------------------------
+#skl2onnx        ==1.17.0    # Conversion sklearn Pipeline → ONNX
+skl2onnx         >= 1.18.0   # primera versión que soporta onnx 1.16+
+scikit-learn     ==1.5.2     # Requis par skl2onnx pour la conversion
+
+# --- MLflow (développement local uniquement) ---------------------------------
+mlflow           ==2.14.0    # Tracking et registre de modèles
+lightgbm         ==4.5.0     # Requis pour charger les modèles MLflow
+joblib           ==1.4.2     # Chargement des pipelines sérialisés
+
+# --- Analyse de drift (Evidently AI — 100% open source) ----------------------
+evidently        ==0.4.33    # Détection de drift des données et modèles
+pandas           ==2.2.2     # Manipulation des DataFrames
+
+# --- Dashboard Streamlit ------------------------------------------------------
+streamlit        ==1.38.0    # Interface web de supervision interactive
+plotly           ==5.24.1    # Graphiques interactifs pour Streamlit
+
+# --- Tests -------------------------------------------------------------------
+pytest           ==8.3.3     # Framework de tests unitaires
+pytest-cov       ==5.0.0     # Couverture de code
+httpx            ==0.27.2    # Client HTTP pour les tests FastAPI

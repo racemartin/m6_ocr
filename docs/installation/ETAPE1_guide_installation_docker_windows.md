@@ -782,7 +782,7 @@ INGESTION TERMINÉE AVEC SUCCÈS
 
 ### 1. Le Concept de "Feature Engineering" (Ingénierie des caractéristiques)
 
-La table `application_train` contient des informations statiques (âge, revenus, possession d'une voiture). C'est une "photo" du client à l'instant T. Mais le comportement financier est un **film**.
+La table `application_train` contient des informations statiques (âge, revenu, possession d'une voiture). C'est une "photo" du client à l'instant T. Mais le comportement financier est un **film**.
 
 * **`bureau.csv`** : Comment ce client se comporte-t-il avec **les autres banques** ? Si `application_train` dit qu'il est solvable, mais que `bureau` montre qu'il a 5 crédits impayés ailleurs, ton modèle doit le savoir.
 * **`previous_application.csv`** : A-t-il déjà demandé des crédits chez **nous** ? Lui a-t-on refusé ? Quelqu'un à qui on a refusé 3 crédits récemment présente un profil de risque très différent.

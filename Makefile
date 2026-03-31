@@ -1,50 +1,362 @@
-.PHONY: clean data lint requirements sync_data_to_s3 sync_data_from_s3
+# =============================================================================
+# Makefile — Projet M6/M7 MLOps : Scoring Crédit « Prêt à Dépenser »
+# Fusionne les commandes de la Partie 1 (entraînement) et de la
+# Partie 2 (API, déploiement, supervision).
+#
+# Utilisation :
+#   make help           → liste toutes les commandes disponibles
+#   make train_all      → pipeline complet phases 1 → 4
+#   make api            → démarre l'API FastAPI (port 8001)
+#   make tests          → lance tous les tests avec couverture ≥ 80%
+# =============================================================================
 
-#################################################################################
-# GLOBALS                                                                       #
-#################################################################################
+# =============================================================================
+# VARIABLES GLOBALES
+# =============================================================================
 
-PROJECT_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
-BUCKET = [OPTIONAL] your-bucket-for-syncing-data (do not include 's3://')
-PROFILE = default
-PROJECT_NAME = m6_ocr
-PYTHON_INTERPRETER = python3
+# -- Identification du projet -------------------------------------------------
+# PROJECT_DIR  := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
+PROJECT_DIR    := $(CURDIR)
+# Nom du projet courant
+PROJECT_NAME  = m7_ocr
+# Bucket S3 (optionnel)
+BUCKET        = your-bucket-name
+# Profil AWS (optionnel)
+PROFILE       = default
 
-ifeq (,$(shell which conda))
-HAS_CONDA=False
-else
-HAS_CONDA=True
-endif
-
+# -- Interpréteur Python : priorité à uv si disponible -----------------------
 PYTHON := uv run python
+UV_PIP := uv pip install
 
+# -- Ports des services -------------------------------------------------------
+# API FastAPI (≠ 8000 pour éviter conflits)
+PORT_API     = 8001
+# Dashboard Streamlit
+PORT_STREAM  = 8501
+# Serveur MLflow (dev local)
+PORT_MLFLOW  = 5001
+
+MLFLOW_BACKEND_STORE=sqlite:///mlflow/mlflow.db
+MLFLOW_ARTIFACT_PATH=./mlflow/artifacts
+
+# -- Backend modèle -----------------------------------------------------------
+# "onnx" (prod) | "mlflow" (dev)
+BACKEND      = onnx
+
+# -- Détection OS pour compatibilité ------------------------------------------
 ifeq ($(OS),Windows_NT)
     SHELL := cmd.exe
 endif
 
-#################################################################################
-# COMMANDS                                                                      #
-#################################################################################
+# -- Détection conda ----------------------------------------------------------
+ifeq (,$(shell where conda 2>nul))
+    HAS_CONDA = False
+else
+    HAS_CONDA = True
+endif
 
-## Install Python Dependencies
-requirements: test_environment
-	$(PYTHON_INTERPRETER) -m pip install -U pip setuptools wheel
-	$(PYTHON_INTERPRETER) -m pip install -r requirements.txt
 
-## Make Dataset
+# =============================================================================
+# Cibles déclarées sans fichier cible (always run)
+# =============================================================================
+.PHONY: help requirements data clean lint sync_data_to_s3 sync_data_from_s3  \
+        create_environment test_environment                                  \
+        train_all phase1_1 phase1_2 phase2 phase3 phase4                     \
+        mlflow export-model convert-onnx drift profile                       \
+        api dashboard docker-build docker-up docker-dev                      \
+        tests tests-unit tests-integration install
+
+
+# =============================================================================
+# Cible par défaut
+# =============================================================================
+.DEFAULT_GOAL := help
+
+
+# ##############################################################################
+# 0. AIDE
+# ##############################################################################
+
+# =============================================================================
+help:
+	@echo ""
+	@echo "============================================================================"
+	@echo "COMMANDES — M7 MLOps : Scoring Crédit (Parties 1 et 2)"
+	@echo "============================================================================"
+	@echo ""
+	@echo "  ── ENVIRONNEMENT ────────────────────────────────────────────────────────"
+	@echo "  make requirements       Installer les dépendances Python"
+	@echo "  make create_environment Créer l'environnement conda ou virtualenv"
+	@echo "  make test_environment   Vérifier que l'environnement est correct"
+	@echo ""
+	@echo "  ── DONNÉES & ENTRAÎNEMENT (Partie 1) ────────────────────────────────────"
+	@echo "  make train_all          Pipeline complet : phases 1 → 4"
+	@echo "  make phase1_1           Phase 1.1 : injection des données brutes"
+	@echo "  make phase1_2           Phase 1.2 : vues SQL + FE + énumérations"
+	@echo "  make phase2             Phase 2   : feature engineering sklearn"
+	@echo "  make phase3             Phase 3   : entraînement + MLflow tracking"
+	@echo "  make phase4             Phase 4   : optimisation bayésienne (Optuna)"
+	@echo ""
+	@echo "  ── MODÈLE & DÉPLOIEMENT (Partie 2) ──────────────────────────────────────"
+	@echo "  make export-model       Exporter meilleur modèle MLflow → model_artifact/"
+	@echo "  make convert-onnx       Convertir pipeline .joblib → ONNX"
+	@echo "  make drift              Analyse de drift Evidently AI"
+	@echo "  make profile            Profilage latences ONNX (500 requêtes)"
+	@echo ""
+	@echo "  ── SERVICES LOCAUX ───────────────────────────────────────────────────────"
+	@echo "  make api                API FastAPI   → http://localhost:$(PORT_API)"
+	@echo "  make dashboard          Streamlit     → http://localhost:$(PORT_STREAM)"
+	@echo "  make docker-up          Tous les services Docker (prod)"
+	@echo "  make docker-dev         Services Docker avec MLflow (dev)"
+	@echo ""
+	@echo "  ── QUALITÉ & NETTOYAGE ───────────────────────────────────────────────────"
+	@echo "  make tests              Tests complets (couverture ≥ 80%)"
+	@echo "  make tests-unit         Tests unitaires uniquement"
+	@echo "  make tests-integration  Tests d'intégration API uniquement"
+	@echo "  make lint               Vérification style (ruff)"
+	@echo "  make clean              Supprimer fichiers temporaires"
+	@echo "============================================================================"
+	@echo ""
+
+
+# ##############################################################################
+# 1. ENVIRONNEMENT
+# ##############################################################################
+
+# =============================================================================
+requirements:
+	@echo "Instalando dependencias con uv..."
+	uv pip install -U pip setuptools wheel
+	uv pip install -r requirements.txt
+	@echo "============================================================================"
+	@echo "Dépendances installées avec succès."
+	@echo "============================================================================"
+
+# =============================================================================
+create_environment:
+ifeq (True,$(HAS_CONDA))
+	@echo "Conda détecté — création de l'environnement : $(PROJECT_NAME)"
+	conda create --name $(PROJECT_NAME) python=3.12 -y
+	@echo ">>> Activez avec : conda activate $(PROJECT_NAME)"
+else
+	@echo "Utilisation de uv pour créer l'environnement virtuel..."
+	uv venv --python 3.12
+	@echo ">>> Environnement créé. Pour l'activer en PowerShell :"
+	@echo ">>> .\.venv\Scripts\Activate.ps1"
+endif
+
+# =============================================================================
+test_environment:
+	$(PYTHON) test_environment.py
+
+# =============================================================================
+install: requirements
+
+
+# ##############################################################################
+# 2. DONNÉES & ENTRAÎNEMENT (Partie 1)
+# ##############################################################################
+
+# =============================================================================
 data: requirements
-	$(PYTHON_INTERPRETER) src/data/make_dataset.py data/raw data/processed
+	$(PYTHON) src/data/make_dataset.py data/raw data/processed
 
-## Delete all compiled Python files
-clean:
-	find . -type f -name "*.py[co]" -delete
-	find . -type d -name "__pycache__" -delete
+# =============================================================================
+train_all: phase1_1 phase1_2 phase2 phase3 phase4
+	@echo "============================================================================"
+	@echo "Pipeline d'entraînement complet (phases 1 à 4) terminé."
+	@echo "============================================================================"
 
-## Lint using flake8
+# =============================================================================
+phase1_1:
+	@echo "============================================================================"
+	@echo "PHASE 1.1 — Injection des données brutes (CSV → PostgreSQL)"
+	@echo "============================================================================"
+ifdef UV
+	uv run phase1_1
+else
+	$(PYTHON) -m src.pipelines.phase1_1_inject_raw
+endif
+
+# =============================================================================
+phase1_2:
+	@echo "============================================================================"
+	@echo "PHASE 1.2 — Vues SQL + Feature Engineering + Énumérations"
+	@echo "============================================================================"
+ifdef UV
+	uv run phase1_2
+else
+	$(PYTHON) -m src.pipelines.phase1_2_views_fe_enum
+endif
+
+# =============================================================================
+phase2:
+	@echo "============================================================================"
+	@echo "PHASE 2 — Feature Engineering sklearn"
+	@echo "============================================================================"
+ifdef UV
+	uv run phase2
+else
+	$(PYTHON) -m src.pipelines.phase2_feature_engineering
+endif
+
+# =============================================================================
+phase3:
+	@echo "============================================================================"
+	@echo "PHASE 3 — Entraînement des modèles + MLflow tracking"
+	@echo "============================================================================"
+ifdef UV
+	uv run phase3
+else
+	$(PYTHON) -m src.pipelines.phase3_model_training_mlflow
+endif
+
+# =============================================================================
+phase4:
+	@echo "============================================================================"
+	@echo "PHASE 4 — Optimisation bayésienne (Optuna)"
+	@echo "============================================================================"
+ifdef UV
+	uv run phase4
+else
+	$(PYTHON) -m src.pipelines.phase4_hyperparameter_tuning
+endif
+
+
+# ##############################################################################
+# 3. MODÈLE & DÉPLOIEMENT (Partie 2)
+# ##############################################################################
+
+# =============================================================================
+export-model:
+	@echo "============================================================================"
+	@echo "EXPORT DU MEILLEUR MODÈLE MLflow → model_artifact/"
+	@echo "============================================================================"
+	$(PYTHON) scripts/export_best_model.py
+
+# =============================================================================
+convert-onnx:
+	@echo "============================================================================"
+	@echo "CONVERSION ONNX — pipeline .joblib → best_model.onnx"
+	@echo "============================================================================"
+	$(PYTHON) scripts/convert_onnx.py
+
+# =============================================================================
+drift:
+	@echo "============================================================================"
+	@echo "ANALYSE DE DRIFT — Evidently AI"
+	@echo "============================================================================"
+	$(PYTHON) scripts/drift_analysis.py
+	@echo "Rapport HTML généré : monitoring/drift_report.html"
+
+# =============================================================================
+profile:
+	@echo "============================================================================"
+	@echo "PROFILAGE PERFORMANCE ONNX (500 requêtes)"
+	@echo "============================================================================"
+	$(PYTHON) optimization/profile_model.py --nb-requetes 500
+
+
+# ##############################################################################
+# 4. SERVICES LOCAUX
+# ##############################################################################
+
+# =============================================================================
+# LANZAR SERVIDOR MLFLOW (Tracking UI)
+# =============================================================================
+mlflow:
+	@echo "Lanzando servidor de tracking MLflow..."
+	@if not exist "mlflow" mkdir mlflow
+	@if not exist "mlflow\artifacts" mkdir mlflow\artifacts
+	mlflow server \
+		--backend-store-uri $(MLFLOW_BACKEND_STORE) \
+		--default-artifact-root $(MLFLOW_ARTIFACT_PATH)  \
+		--host 0.0.0.0 \
+		--port $(PORT_MLFLOW)
+
+# =============================================================================
+api:
+	@echo "============================================================================"
+	@echo "API FastAPI....: http://localhost:$(PORT_API)"
+	@echo "Swagger UI.....: http://localhost:$(PORT_API)/docs"
+	@echo "BACKEND........: $(BACKEND)"
+ifeq ($(OS),Windows_NT)
+	set MODEL_BACKEND=$(BACKEND)&& $(PYTHON) -m uvicorn src.api.main:application \
+		--host 0.0.0.0 \
+		--port $(PORT_API) \
+		--reload
+else
+	MODEL_BACKEND=$(BACKEND) $(PYTHON) -m uvicorn src.api.main:application \
+		--host 0.0.0.0 \
+		--port $(PORT_API) \
+		--reload
+endif
+	@echo "============================================================================"
+
+
+# =============================================================================
+dashboard:
+	@echo "============================================================================"
+	@echo "Dashboard Streamlit → http://localhost:$(PORT_STREAM)"
+	@echo "============================================================================"
+	$(PYTHON) -m streamlit run monitoring/dashboard.py \
+		--server.port    $(PORT_STREAM)                \
+		--server.address 0.0.0.0
+
+# =============================================================================
+docker-build:
+	@echo "Construction de l'image Docker multi-stage..."
+	docker build -t m7-scoring-credit:latest .
+	@echo "Image construite : m7-scoring-credit:latest"
+
+# =============================================================================
+docker-up:
+	@echo "Démarrage de tous les services Docker (production)..."
+	docker-compose up --build
+
+# =============================================================================
+docker-dev:
+	@echo "Démarrage avec profil dev (+ MLflow sur port $(PORT_MLFLOW))..."
+	docker-compose --profile dev up --build
+
+
+# ##############################################################################
+# 5. QUALITÉ DU CODE & TESTS
+# ##############################################################################
+
+# =============================================================================
+tests:
+	@echo "============================================================================"
+	@echo "TESTS PYTEST — couverture minimale : 80%"
+	@echo "============================================================================"
+	$(PYTHON) -m pytest tests/ -v            \
+		--cov=src                            \
+		--cov-report=term-missing            \
+		--cov-report=html:reports/coverage   \
+		--cov-fail-under=80
+
+# =============================================================================
+tests-unit:
+	@echo "Tests unitaires uniquement (sans API ni modèle ONNX)..."
+	$(PYTHON) -m pytest tests/unit/ -v -m unit
+
+# =============================================================================
+tests-integration:
+	@echo "Tests d'intégration API uniquement..."
+	$(PYTHON) -m pytest tests/integration/ -v -m integration
+
+# =============================================================================
 lint:
-	flake8 src
+	@echo "Vérification du style de code avec ruff..."
+	ruff check src/ tests/ scripts/ monitoring/ optimization/
+	@echo "Style de code validé."
 
-## Upload Data to S3
+
+# ##############################################################################
+# 6. SYNCHRONISATION S3 (optionnel)
+# ##############################################################################
+
+# =============================================================================
 sync_data_to_s3:
 ifeq (default,$(PROFILE))
 	aws s3 sync data/ s3://$(BUCKET)/data/
@@ -52,7 +364,7 @@ else
 	aws s3 sync data/ s3://$(BUCKET)/data/ --profile $(PROFILE)
 endif
 
-## Download Data from S3
+# =============================================================================
 sync_data_from_s3:
 ifeq (default,$(PROFILE))
 	aws s3 sync s3://$(BUCKET)/data/ data/
@@ -60,130 +372,19 @@ else
 	aws s3 sync s3://$(BUCKET)/data/ data/ --profile $(PROFILE)
 endif
 
-## Set up python interpreter environment
-create_environment:
-ifeq (True,$(HAS_CONDA))
-		@echo ">>> Detected conda, creating conda environment."
-ifeq (3,$(findstring 3,$(PYTHON_INTERPRETER)))
-	conda create --name $(PROJECT_NAME) python=3
-else
-	conda create --name $(PROJECT_NAME) python=2.7
-endif
-		@echo ">>> New conda env created. Activate with:\nsource activate $(PROJECT_NAME)"
-else
-	$(PYTHON_INTERPRETER) -m pip install -q virtualenv virtualenvwrapper
-	@echo ">>> Installing virtualenvwrapper if not already installed.\nMake sure the following lines are in shell startup file\n\
-	export WORKON_HOME=$$HOME/.virtualenvs\nexport PROJECT_HOME=$$HOME/Devel\nsource /usr/local/bin/virtualenvwrapper.sh\n"
-	@bash -c "source `which virtualenvwrapper.sh`;mkvirtualenv $(PROJECT_NAME) --python=$(PYTHON_INTERPRETER)"
-	@echo ">>> New virtualenv created. Activate with:\nworkon $(PROJECT_NAME)"
-endif
 
-## Test python environment is setup correctly
-test_environment:
-	$(PYTHON_INTERPRETER) test_environment.py
+# ##############################################################################
+# 7. NETTOYAGE
+# ##############################################################################
 
-#################################################################################
-# PROJECT RULES                                                                 #
-#################################################################################
-
-phase1_1:
-	@echo 🚀 Running Phase 1_1: Data Inhection ...
-ifdef UV
-	uv run phase1_1
-else
-	@$(PYTHON) -m src.pipelines.phase1_1_inject_raw
-endif
-
-phase1_2:
-	@echo 🚀 Running Phase 1_2: Data preparation ...
-ifdef UV
-	uv run phase1_2
-else
-	@$(PYTHON) -m src.pipelines.phase1_2_views_fe_enum
-endif
-
-phase2:
-	@echo 🚀 Running Phase 2: Feature Engineering ...
-ifdef UV
-	uv run phase2
-else
-	@$(PYTHON) -m src.pipelines.phase2_feature_engineering
-endif
-
-phase3:
-	@echo 🚀 Running Phase 3: Model Training ...
-ifdef UV
-	uv run phase3
-else
-	@$(PYTHON) -m src.pipelines.phase3_model_training_mlflow
-endif
-
-phase4:
-	@echo 🚀 Running Phase 4: Hyperparameter Tuning ...
-ifdef UV
-	uv run phase4
-else
-	@$(PYTHON) -m src.pipelines.phase4_hyperparameter_tuning
-endif
-
-
-#################################################################################
-# Self Documenting Commands                                                     #
-#################################################################################
-
-.DEFAULT_GOAL := help
-
-# Inspired by <http://marmelab.com/blog/2016/02/29/auto-documented-makefile.html>
-# sed script explained:
-# /^##/:
-# 	* save line in hold space
-# 	* purge line
-# 	* Loop:
-# 		* append newline + line to hold space
-# 		* go to next line
-# 		* if line starts with doc comment, strip comment character off and loop
-# 	* remove target prerequisites
-# 	* append hold space (+ newline) to line
-# 	* replace newline plus comments by `---`
-# 	* print line
-# Separate expressions are necessary because labels cannot be delimited by
-# semicolon; see <http://stackoverflow.com/a/11799865/1968>
-.PHONY: help
-help:
-	@echo "$$(tput bold)Available rules:$$(tput sgr0)"
-	@echo
-	@sed -n -e "/^## / { \
-		h; \
-		s/.*//; \
-		:doc" \
-		-e "H; \
-		n; \
-		s/^## //; \
-		t doc" \
-		-e "s/:.*//; \
-		G; \
-		s/\\n## /---/; \
-		s/\\n/ /g; \
-		p; \
-	}" ${MAKEFILE_LIST} \
-	| LC_ALL='C' sort --ignore-case \
-	| awk -F '---' \
-		-v ncol=$$(tput cols) \
-		-v indent=19 \
-		-v col_on="$$(tput setaf 6)" \
-		-v col_off="$$(tput sgr0)" \
-	'{ \
-		printf "%s%*s%s ", col_on, -indent, $$1, col_off; \
-		n = split($$2, words, " "); \
-		line_length = ncol - indent; \
-		for (i = 1; i <= n; i++) { \
-			line_length -= length(words[i]) + 1; \
-			if (line_length <= 0) { \
-				line_length = ncol - indent - length(words[i]) - 1; \
-				printf "\n%*s ", -indent, " "; \
-			} \
-			printf "%s ", words[i]; \
-		} \
-		printf "\n"; \
-	}' \
-	| more $(shell test $(shell uname) = Darwin && echo '--no-init --raw-control-chars')
+# =============================================================================
+clean:
+	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	find . -type f -name "*.py[co]"    -delete                        || true
+	find . -type f -name "*.pyo"       -delete                        || true
+	rm -rf .pytest_cache                                               || true
+	rm -rf .coverage                                                   || true
+	rm -rf reports/coverage                                            || true
+	rm -rf optimization/rapports                                       || true
+	rm -f  monitoring/drift_report.html                                || true
+	@echo "Nettoyage terminé."

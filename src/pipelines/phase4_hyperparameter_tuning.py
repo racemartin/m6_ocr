@@ -111,6 +111,7 @@ from sklearn.metrics import (
     confusion_matrix,
 )
 
+
 from sklearn.base import clone as sklearn_clone
 import numpy as np
 
@@ -468,6 +469,9 @@ def build_model_from_params(
         raise ValueError(f"❌ Modèle inconnu dans le catalogue : {model_name}")
 
     return builders[model_name](params)
+
+
+
     
 # ##############################################################################
 # SEUIL MÉTIER
@@ -539,6 +543,18 @@ def optimize_threshold(
 
     return seuil_optimal, df
 
+def custom_metier_scorer(y_true, y_proba):
+    # ✅ siempre extraer columna positiva
+    if hasattr(y_proba, 'shape') and len(y_proba.shape) > 1:
+        y_proba = y_proba[:, 1]
+    
+    y_pred = (y_proba >= 0.5).astype(int)
+    
+    cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
+    tn, fp, fn, tp = cm.ravel()
+    
+    score = (10 * fn) + (1 * fp)
+    return -float(score)
 
 # ##############################################################################
 # PIPELINE PHASE 4
@@ -628,6 +644,15 @@ class Phase4Pipeline:
         self.mlflow_client:  Optional[MlflowClient] = None
         self.experiment_id:  Optional[str]          = None
         self.mlflow_run_ids: Dict[str, str]         = {}
+
+
+    
+        # 2. Creamos el objeto scorer oficial de sklearn
+        self.business_scorer = make_scorer(
+            custom_metier_scorer,
+            response_method="predict_proba",  # ✅ nuevo API sklearn ≥1.4
+            greater_is_better=True,
+        )
 
         # Scorer F2 pour sklearn (GridSearchCV)
         self._scorer_f2 = make_scorer(fbeta_score, beta=2, zero_division=0)
@@ -886,7 +911,7 @@ class Phase4Pipeline:
         gs = GridSearchCV(
             estimator  = base_model,
             param_grid = param_grid,
-            scoring    = self._scorer_f2,
+            scoring    = self.business_scorer,  # self._scorer_f2
             cv         = cv,
             refit      = True,
             n_jobs     = self.n_jobs_gs,
@@ -902,14 +927,26 @@ class Phase4Pipeline:
         y_proba_eval = best_model.predict_proba(self.X_eval)[:, 1]
         y_pred_eval  = (y_proba_eval >= 0.5).astype(int)
 
+        cm = confusion_matrix(self.y_eval, y_pred_eval, labels=[0, 1])
+        tn, fp, fn, tp = cm.ravel()
+        
+        # Coût métier (même logique que ton scorer)
+        business_cost    = (10 * fn) + (1 * fp)
+        business_cost_n  = -float(business_cost)  # version "score" (plus grand = mieux)
+        
         eval_metrics = {
-            "f2":      fbeta_score(self.y_eval, y_pred_eval, beta=2, zero_division=0),
-            "f1":      f1_score(self.y_eval, y_pred_eval, zero_division=0),
-            "recall":  recall_score(self.y_eval, y_pred_eval, zero_division=0),
-            "precision": precision_score(self.y_eval, y_pred_eval, zero_division=0),
-            "roc_auc": roc_auc_score(self.y_eval, y_proba_eval),
+            "f2":            fbeta_score(self.y_eval, y_pred_eval, beta=2, zero_division=0),
+            "f1":            f1_score(self.y_eval, y_pred_eval, zero_division=0),
+            "recall":        recall_score(self.y_eval, y_pred_eval, zero_division=0),
+            "precision":     precision_score(self.y_eval, y_pred_eval, zero_division=0),
+            "roc_auc":       roc_auc_score(self.y_eval, y_proba_eval),
+            # ✅ Métriques métier
+            "business_cost": business_cost,        # ex: 4230 (lisible)
+            "fn":            int(fn),              # Faux Négatifs — les plus dangereux
+            "fp":            int(fp),              # Faux Positifs
+            "tp":            int(tp),
+            "tn":            int(tn),
         }
-
         result = {
             "engine":          "gridsearch",
             "best_params":     gs.best_params_,
@@ -925,7 +962,9 @@ class Phase4Pipeline:
 
         self._log(
             f"GridSearch terminé en {t_elapsed:.1f}s — "
-            f"CV F2={gs.best_score_:.4f}  Eval F2={eval_metrics['f2']:.4f}",
+            f"CV score={gs.best_score_:.1f}  Eval F2={eval_metrics['f2']:.4f}  "
+            f"Coût métier={eval_metrics['business_cost']}  "   # ✅
+            f"FN={eval_metrics['fn']}  FP={eval_metrics['fp']}",
             "SUCCESS",
         )
         self._log(f"Meilleurs params : {gs.best_params_}", "INFO")
@@ -985,37 +1024,63 @@ class Phase4Pipeline:
 
         # ── Fonction objectif ──────────────────────────────────────────────
         def objective(trial) -> float:
-            """
-            Fonction à maximiser par Optuna.
-
-            Chaque appel correspond à un Trial unique.
-            trial.suggest_*() informe Optuna des paramètres choisis
-            pour qu'il construise son modèle probabiliste interne.
-            """
             params = get_optuna_search_space(trial, self.champion_name)
             if not params:
                 raise optuna.TrialPruned()
-
+        
             try:
                 model = build_model_from_params(
                     self.champion_name, params, self.random_state
                 )
-
-                # Validation croisée stratifiée (anti-leakage)
+        
                 scores = cross_val_score(
                     model,
                     self.X_train, self.y_train,
                     cv      = cv,
-                    scoring = self._scorer_f2,
-                    n_jobs  = 1,             # 1 job par trial (parallélisme Optuna)
+                    scoring = self.business_scorer,
+                    n_jobs  = 1,
                 )
-                return float(scores.mean())
-
+                
+                # ✅ DEBUG — añade esto temporalmente
+                # print(f"[DEBUG] params={params}")
+                # print(f"[DEBUG] scores={scores}")
+                # print(f"[DEBUG] mean={scores.mean()}")
+                
+                mean = float(np.nanmean(scores))  # ← nanmean en lugar de mean
+                # print(f"[DEBUG] nanmean={mean}")
+                
+                if np.isnan(mean):
+                    # print("[DEBUG] ⚠️ nan detectado → retornando 0.0")
+                    return 0.0  # ← red de seguridad absoluta
+                    
+                return mean
+        
             except Exception as e:
-                # Un trial qui plante → on le marque comme pruné
                 self._log(f"  Trial échoué : {e}", "WARNING")
                 raise optuna.TrialPruned()
 
+        
+        # ✅ TEST DIRECTO DEL SCORER — antes del study
+
+        # print("[SCORER TEST] Test directo del scorer...")
+        test_model = DecisionTreeClassifier(max_depth=3, random_state=self.random_state)
+        test_cv = StratifiedKFold(n_splits=2, shuffle=True, random_state=42)  # usa el ya importado
+        
+        test_scores = cross_val_score(
+            test_model,
+            self.X_train, self.y_train,
+            cv=test_cv,
+            scoring=self.business_scorer,
+            n_jobs=1
+        )
+        # print(f"[SCORER TEST] scores = {test_scores}")
+        # print(f"[SCORER TEST] scorer = {self.business_scorer}")
+        
+        y_dummy_true = self.y_train[:1000]
+        test_model.fit(self.X_train[:5000], self.y_train[:5000])
+        y_dummy_proba = test_model.predict_proba(self.X_train[:1000])
+        # print(f"[SCORER TEST] custom_metier_scorer direct = {custom_metier_scorer(y_dummy_true, y_dummy_proba)}")
+        
         # ── Création et lancement de la Study ─────────────────────────────
         #
         # TPESampler  : algorithme bayésien (défaut Optuna, très efficace)
@@ -1059,12 +1124,23 @@ class Phase4Pipeline:
         y_proba_eval = best_model.predict_proba(self.X_eval)[:, 1]
         y_pred_eval  = (y_proba_eval >= 0.5).astype(int)
 
+        # ✅ Matriz siempre 2×2
+        cm = confusion_matrix(self.y_eval, y_pred_eval, labels=[0, 1])
+        tn, fp, fn, tp = cm.ravel()
+        business_cost = (10 * fn) + (1 * fp)
+        
         eval_metrics = {
-            "f2":        fbeta_score(self.y_eval, y_pred_eval, beta=2, zero_division=0),
-            "f1":        f1_score(self.y_eval, y_pred_eval, zero_division=0),
-            "recall":    recall_score(self.y_eval, y_pred_eval, zero_division=0),
-            "precision": precision_score(self.y_eval, y_pred_eval, zero_division=0),
-            "roc_auc":   roc_auc_score(self.y_eval, y_proba_eval),
+            "f2":            fbeta_score(self.y_eval, y_pred_eval, beta=2, zero_division=0),
+            "f1":            f1_score(self.y_eval, y_pred_eval, zero_division=0),
+            "recall":        recall_score(self.y_eval, y_pred_eval, zero_division=0),
+            "precision":     precision_score(self.y_eval, y_pred_eval, zero_division=0),
+            "roc_auc":       roc_auc_score(self.y_eval, y_proba_eval),
+            # ✅ Métier — identique step3
+            "business_cost": business_cost,
+            "fn":            int(fn),
+            "fp":            int(fp),
+            "tp":            int(tp),
+            "tn":            int(tn),
         }
 
         # Statistiques de la study Optuna
@@ -1090,7 +1166,10 @@ class Phase4Pipeline:
 
         self._log(
             f"Optuna terminé en {t_elapsed:.1f}s — "
-            f"{n_complete} trials complets, {n_pruned} prunés",
+            f"{n_complete} trials complets, {n_pruned} prunés  "
+            f"Best score={best_trial.value:.1f}  Eval F2={eval_metrics['f2']:.4f}  "
+            f"Coût métier={eval_metrics['business_cost']}  "
+            f"FN={eval_metrics['fn']}  FP={eval_metrics['fp']}",
             "SUCCESS",
         )
         self._log(
@@ -1147,25 +1226,37 @@ class Phase4Pipeline:
         rows = []
         for engine_name, r in candidates.items():
             em = r["eval_metrics"]
+            cv_score = r["best_cv_f2"]
+            
+            # ✅ CV score legible — coste métier o F2 según el scorer
+            cv_display = f"{abs(cv_score):,.0f}" if cv_score < -1 else f"{cv_score:.4f}"
+            
             rows.append({
                 "Moteur":      engine_name,
-                "CV F2":       round(r["best_cv_f2"], 4),
+                "CV coût":     cv_display,          # ✅ renombrado y legible
                 "Eval F2":     round(em["f2"], 4),
                 "Eval AUC":    round(em["roc_auc"], 4),
                 "Recall":      round(em["recall"], 4),
                 "Precision":   round(em["precision"], 4),
+                "Coût métier": em.get("business_cost", "-"),   # ✅ coste real holdout
+                "FN":          em.get("fn", "-"),
+                "FP":          em.get("fp", "-"),
                 "Temps (s)":   round(r["train_time_s"], 1),
                 "Gagnant":     "🏆" if engine_name == best_engine else "",
             })
-
+        
         df = pd.DataFrame(rows).sort_values("Eval F2", ascending=False)
-        print("\n" + "=" * 76)
+        print("\n" + "=" * 92)
         print("COMPARAISON MOTEURS D'OPTIMISATION — Phase 4")
-        print("=" * 76)
+        print("=" * 92)
         print(df.to_string(index=False))
-        print("=" * 76)
+        print("=" * 92)
         self._log(
-            f"🏆 Gagnant : {best_engine}  (F2 eval={winner['eval_metrics']['f2']:.4f})",
+            f"🏆 Gagnant : {best_engine}  "
+            f"(F2 eval={winner['eval_metrics']['f2']:.4f}  "
+            f"Coût={winner['eval_metrics'].get('business_cost', '?')}  "
+            f"FN={winner['eval_metrics'].get('fn', '?')}  "
+            f"FP={winner['eval_metrics'].get('fp', '?')})",
             "SUCCESS",
         )
 

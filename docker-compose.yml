@@ -1,4 +1,7 @@
+version: '3.8'
+
 services:
+  # --- INFRAESTRUCTURA DE DONNEES (Part 1) ---
   postgres:
     image: postgres:15
     container_name: postgres_db
@@ -14,6 +17,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       # ON MONTE LE SCRIPT D'INITIALISATION ICI :
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    restart: unless-stopped
 
   pgadmin:
     image: dpage/pgadmin4
@@ -28,6 +32,7 @@ services:
     depends_on:
       - postgres
 
+  # --- TRACKING SERVER (Fusionado: Backend Postgres + Volumen de Artefactos) ---
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.16.0
     depends_on: [postgres]
@@ -46,19 +51,63 @@ services:
       "
     ports: ["5001:5000"]
     volumes: ["mlflow_artifacts:/mlflow/artifacts"]
+    restart: unless-stopped
 
+  #api:
+  #  build: .
+  #  depends_on: [mlflow]
+  #  # Votre API de scoring (FastAPI) sera disponible sur http://localhost:8001.
+  #  ports: ["0.0.0.0:8001:8000"]
+  #  environment:
+  #    MLFLOW_TRACKING_URI: http://mlflow:5000
+  #    MODEL_NAME:          credit-scoring-model
+  #    MODEL_STAGE:         Production
+  #  env_file: [.env]
+
+  # --- API DE SCORING (Actualizada con Multi-stage y Healthcheck) ---
   api:
-    build: .
-    depends_on: [mlflow]
-    # Votre API de scoring (FastAPI) sera disponible sur http://localhost:8001.
-    ports: ["0.0.0.0:8001:8000"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime # Stage de producción definido en tu Dockerfile
+    container_name: m7_api
+    depends_on:
+      - mlflow
+    ports:
+      - "8001:8000" # Mantenemos el acceso externo en 8001
     environment:
-      MLFLOW_TRACKING_URI: http://mlflow:5000
-      MODEL_NAME:          credit-scoring-model
-      MODEL_STAGE:         Production
-    env_file: [.env]
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MODEL_BACKEND=${MODEL_BACKEND:-onnx}
+      - SEUIL_DECISION=${SEUIL_DECISION:-0.35}
+      - MODEL_NAME=credit-scoring-model
+    env_file:
+      - .env
+    volumes:
+      - ./predictions.jsonl:/app/predictions.jsonl # Para compartir logs con el dashboard
+      - ./monitoring:/app/monitoring
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
 
-
+  # --- DASHBOARD STREAMLIT (Nuevo Servicio) ---
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    container_name: m7_dashboard
+    ports:
+      - "8501:8501" # Acceso UI Dashboard
+    volumes:
+      - ./predictions.jsonl:/app/predictions.jsonl
+      - ./monitoring:/app/monitoring
+      - ./model_artifact:/app/model_artifact
+    depends_on:
+      api:
+        condition: service_healthy # Solo arranca si la API responde /health
+    restart: unless-stopped
 
 volumes:
   postgres_data:

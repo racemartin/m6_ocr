@@ -1,0 +1,8 @@
+{
+  "run_id": "9efa66cea80040e493f1b02aad7d7a85",
+  "roc_auc": 0.7663815515428188,
+  "f1_score": 0.0,
+  "seuil_optimal": NaN,
+  "algorithme": "lightgbm",
+  "shap_disponible": true
+}

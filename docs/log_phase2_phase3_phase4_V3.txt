@@ -851,3 +851,243 @@ Rang              Modèle  AUC-ROC(eval)  F2(eval)  F1(eval)  Recall(eval)  Prec
   ⮕  Suite : Phase 4 — Optimisation hyperparamètres
 ============================================================================
 PS C:\Users\Public\IAE_DELL\pra_dell\m6_ocr>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+########################################################################
+########################################################################
+########################################################################
+########################################################################
+
+PS C:\Users\Public\IAE_DELL\pra_dell\m6_ocr> make phase4
+process_begin: CreateProcess(NULL, dirname C:/Users/Public/IAE_DELL/pra_dell/m6_ocr/Makefile, ...) failed.
+Makefile:7: pipe: No error
+process_begin: CreateProcess(NULL, which conda, ...) failed.
+Makefile:13: pipe: No error
+­ƒÜÇ Running Phase 4: Hyperparameter Tuning ...
+
+============================================================================
+🚀 PHASE 4 — OPTIMISATION HYPERPARAMÈTRES + SEUIL MÉTIER
+   Projet : Prêt à Dépenser — Home Credit Default Risk
+============================================================================
+
+################################################################################
+📊 Configuration MLflow Phase 4 ...
+ℹ️  Expérience existante : Smart_Credit_Scoring
+
+################################################################################
+📊 STEP 1. Chargement du champion Phase 3 ...
+ℹ️  Champion détecté automatiquement : decision_tree
+✅ Champion : decision_tree (F2 Phase3=0.38746908491343773)
+ℹ️  Classe sklearn : DecisionTreeClassifier
+
+################################################################################
+📊 STEP 2. Chargement des données (From Database)...
+ℹ️  Lecture des tables ml_X_train et ml_y_train ...
+✅ Tables SQL chargées en 126.7s — 307,511 lignes × 234 colonnes
+✅ Split : X_train=(246008, 232)  X_eval=(61503, 232)  défauts=8.1%
+
+################################################################################
+🔲 STEP 3. GRIDSEARCHCV — Optimisation exhaustive ...
+ℹ️  Grille : 24 combinaisons × 5 plis = 120 fits
+✅ GridSearch terminé en 762.4s — CV F2=0.3868  Eval F2=0.3854
+ℹ️  Meilleurs params : {'max_depth': 8, 'min_samples_leaf': 100, 'min_samples_split': 30}
+ℹ️  cv_results GridSearch → phase4_gs_cv_results_decision_tree.csv
+📈   MLflow run ca95e9d5... [gridsearch]
+2026/03/03 14:24:24 WARNING mlflow.utils.environment: Failed to resolve installed pip version. ``pip`` will be added to conda.yaml environment spec without a version specifier.
+🏃 View run decision_tree_gridsearch_opt at: http://localhost:5001/#/experiments/2/runs/ca95e9d5f6f542d2ace6dadab41ae67a
+🧪 View experiment at: http://localhost:5001/#/experiments/2
+
+################################################################################
+🔬 STEP 4. OPTUNA — Optimisation bayésienne (TPE) ...
+Best trial: 45. Best value: 0.388465: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 50/50 [1:09:30<00:00, 83.40s/it]
+✅ Optuna terminé en 4170.2s — 50 trials complets, 0 prunés
+✅ Meilleur trial : CV F2=0.3885  Eval F2=0.3866
+ℹ️  Meilleurs params : {'max_depth': 8, 'min_samples_leaf': 165, 'min_samples_split': 11}
+ℹ️  Study Optuna sauvegardé → phase4_optuna_study_decision_tree.pkl
+📈   MLflow run 6552d3f9... [optuna]
+2026/03/03 15:37:21 WARNING mlflow.utils.environment: Failed to resolve installed pip version. ``pip`` will be added to conda.yaml environment spec without a version specifier.
+🏃 View run decision_tree_optuna_opt at: http://localhost:5001/#/experiments/2/runs/6552d3f9d18849db9a6a96e7e400a419
+🧪 View experiment at: http://localhost:5001/#/experiments/2
+
+################################################################################
+📊 STEP 5. Comparaison GridSearch vs Optuna ...
+
+============================================================================
+COMPARAISON MOTEURS D'OPTIMISATION — Phase 4
+============================================================================
+    Moteur  CV F2  Eval F2  Eval AUC  Recall  Precision  Temps (s) Gagnant
+    optuna 0.3885   0.3866    0.7143  0.6649     0.1446     4170.2       🏆
+gridsearch 0.3868   0.3854    0.7116  0.6645     0.1438      762.4
+============================================================================
+✅ 🏆 Gagnant : optuna  (F2 eval=0.3866)
+
+################################################################################
+📊 STEP 6. Optimisation du seuil métier (coût FN=10× > FP=1×) ...
+✅ Seuil optimal   : 0.538
+ℹ️  F2 au seuil opt.: 0.3857
+ℹ️  Recall au seuil.: 0.6238
+✅ Coût métier : 36231 → 35872 (économie 359 unités)
+ℹ️  Courbe seuil → phase4_threshold_curve.csv
+📈 MLflow run 6552d3f9 mis à jour : optimal_threshold=0.538  threshold_f2=0.3857  threshold_recall=0.6238
+
+################################################################################
+📊 STEP 5b. Refit final sur 100% des données (train + eval) ...
+ℹ️  Données fusionnées : 307,511 lignes (train=246,008 + eval=61,503)  défauts=8.07%
+✅ Refit terminé en 25.9s sur 307,511 lignes ✓
+✅ Le modèle champion est prêt pour la Phase 5 (scoring Kaggle + API).
+
+################################################################################
+📊 STEP 7. Sauvegarde du modèle optimisé ...
+✅ Modèle → phase4_best_model.joblib
+ℹ️  Metadata → phase4_best_model_metadata.json
+📈 Artefacts finaux (joblib + JSON) loggués sur run MLflow 6552d3f9
+
+################################################################################
+📊 STEP 8. Enregistrement dans PostgreSQL model_versions ...
+✅ Enregistré en DB — Version : v_phase4_20260303_154058
+
+################################################################################
+📊 STEP 9. Enregistrement des benchmarks de monitoring...
+✅ 5 métricas de referencia guardadas con éxito.
+
+============================================================================
+✅ PHASE 4 TERMINÉE AVEC SUCCÈS
+============================================================================
+  Durée totale...........: 1:31:54 (H:M:S)
+  Champion Phase 3.......: decision_tree
+  Moteur gagnant.........: optuna
+  Meilleurs params.......: {'max_depth': 8, 'min_samples_leaf': 165, 'min_samples_split': 11}
+  F2 Phase 3 (baseline)..: 0.38746908491343773
+  F2 Phase 4 (optimisé)..: 0.38535217848382197
+  Seuil optimal..........: 0.538  (défaut : 0.500)
+  MLflow UI..............: http://localhost:5001
+  Expérience.............: Smart_Credit_Scoring
+
+  ⮕  Suite : Phase 5 — TODO ...
+============================================================================
+
+
+
+
+PS C:\Users\Public\IAE_DELL\pra_dell\m6_ocr> make phase4
+process_begin: CreateProcess(NULL, dirname C:/Users/Public/IAE_DELL/pra_dell/m6_ocr/Makefile, ...) failed.
+Makefile:7: pipe: No error
+process_begin: CreateProcess(NULL, which conda, ...) failed.
+Makefile:13: pipe: No error
+­ƒÜÇ Running Phase 4: Hyperparameter Tuning ...
+
+============================================================================
+🚀 PHASE 4 — OPTIMISATION HYPERPARAMÈTRES + SEUIL MÉTIER
+   Projet : Prêt à Dépenser — Home Credit Default Risk
+============================================================================
+
+################################################################################
+📊 Configuration MLflow Phase 4 ...
+ℹ️  Expérience existante : Smart_Credit_Scoring
+
+################################################################################
+📊 STEP 1. Chargement du champion Phase 3 ...
+ℹ️  Champion détecté automatiquement : decision_tree
+✅ Champion : decision_tree (F2 Phase3=0.38746908491343773)
+ℹ️  Classe sklearn : DecisionTreeClassifier
+
+################################################################################
+📊 STEP 2. Chargement des données (From Database)...
+ℹ️  Lecture des tables ml_X_train et ml_y_train ...
+✅ Tables SQL chargées en 97.1s — 307,511 lignes × 234 colonnes
+✅ Split : X_train=(246008, 232)  X_eval=(61503, 232)  défauts=8.1%
+
+################################################################################
+🔲 STEP 3. GRIDSEARCHCV — Optimisation exhaustive ...
+ℹ️  Grille : 24 combinaisons × 5 plis = 120 fits
+✅ GridSearch terminé en 741.1s — CV score=-28821.6  Eval F2=0.3854  Coût métier=36306  FN=1666  FP=19646
+ℹ️  Meilleurs params : {'max_depth': 8, 'min_samples_leaf': 100, 'min_samples_split': 30}
+ℹ️  cv_results GridSearch → phase4_gs_cv_results_decision_tree.csv
+📈   MLflow run 86896f0c... [gridsearch]
+2026/03/04 09:38:48 WARNING mlflow.utils.environment: Failed to resolve installed pip version. ``pip`` will be added to conda.yaml environment spec without a version specifier.
+🏃 View run decision_tree_gridsearch_opt at: http://localhost:5001/#/experiments/2/runs/86896f0cafa34fd69592379ba131a0ce
+🧪 View experiment at: http://localhost:5001/#/experiments/2
+
+################################################################################
+🔬 STEP 4. OPTUNA — Optimisation bayésienne (TPE) ...
+Best trial: 45. Best value: -28670.2: 100%|██████████████████████████████████████████████████████████████████| 50/50 [1:02:24<00:00, 74.90s/it]
+✅ Optuna terminé en 3745.0s — 50 trials complets, 0 prunés  Best score=-28670.2  Eval F2=0.3866  Coût métier=36173  FN=1664  FP=19533
+✅ Meilleur trial : CV F2=-28670.2000  Eval F2=0.3866
+ℹ️  Meilleurs params : {'max_depth': 8, 'min_samples_leaf': 165, 'min_samples_split': 11}
+ℹ️  Study Optuna sauvegardé → phase4_optuna_study_decision_tree.pkl
+📈   MLflow run 3ab0e793... [optuna]
+2026/03/04 10:44:44 WARNING mlflow.utils.environment: Failed to resolve installed pip version. ``pip`` will be added to conda.yaml environment spec without a version specifier.
+🏃 View run decision_tree_optuna_opt at: http://localhost:5001/#/experiments/2/runs/3ab0e79348c749a287928178b863e37b
+🧪 View experiment at: http://localhost:5001/#/experiments/2
+
+################################################################################
+📊 STEP 5. Comparaison GridSearch vs Optuna ...
+
+============================================================================================
+COMPARAISON MOTEURS D'OPTIMISATION — Phase 4
+============================================================================================
+    Moteur CV coût  Eval F2  Eval AUC  Recall  Precision  Coût métier   FN    FP  Temps (s) Gagnant
+    optuna  28,670   0.3866    0.7143  0.6649     0.1446        36173 1664 19533     3745.0       🏆
+gridsearch  28,822   0.3854    0.7116  0.6645     0.1438        36306 1666 19646      741.1
+============================================================================================
+✅ 🏆 Gagnant : optuna  (F2 eval=0.3866  Coût=36173  FN=1664  FP=19533)
+
+################################################################################
+📊 STEP 6. Optimisation du seuil métier (coût FN=10× > FP=1×) ...
+✅ Seuil optimal   : 0.538
+ℹ️  F2 au seuil opt.: 0.3857
+ℹ️  Recall au seuil.: 0.6238
+✅ Coût métier : 36231 → 35872 (économie 359 unités)
+ℹ️  Courbe seuil → phase4_threshold_curve.csv
+📈 MLflow run 3ab0e793 mis à jour : optimal_threshold=0.538  threshold_f2=0.3857  threshold_recall=0.6238
+
+################################################################################
+📊 STEP 5b. Refit final sur 100% des données (train + eval) ...
+ℹ️  Données fusionnées : 307,511 lignes (train=246,008 + eval=61,503)  défauts=8.07%
+✅ Refit terminé en 23.6s sur 307,511 lignes ✓
+✅ Le modèle champion est prêt pour la Phase 5 (scoring Kaggle + API).
+
+################################################################################
+📊 STEP 7. Sauvegarde du modèle optimisé ...
+✅ Modèle → phase4_best_model.joblib
+ℹ️  Metadata → phase4_best_model_metadata.json
+📈 Artefacts finaux (joblib + JSON) loggués sur run MLflow 3ab0e793
+
+################################################################################
+📊 STEP 8. Enregistrement dans PostgreSQL model_versions ...
+✅ Enregistré en DB — Version : v_phase4_20260304_104749
+
+################################################################################
+📊 STEP 9. Enregistrement des benchmarks de monitoring...
+✅ 5 métricas de referencia guardadas con éxito.
+
+============================================================================
+✅ PHASE 4 TERMINÉE AVEC SUCCÈS
+============================================================================
+  Durée totale...........: 1:23:33 (H:M:S)
+  Champion Phase 3.......: decision_tree
+  Moteur gagnant.........: optuna
+  Meilleurs params.......: {'max_depth': 8, 'min_samples_leaf': 165, 'min_samples_split': 11}
+  F2 Phase 3 (baseline)..: 0.38746908491343773
+  F2 Phase 4 (optimisé)..: 0.38535217848382197
+  Seuil optimal..........: 0.538  (défaut : 0.500)
+  MLflow UI..............: http://localhost:5001
+  Expérience.............: Smart_Credit_Scoring
