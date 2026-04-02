@@ -7,6 +7,7 @@
 # --- Bibliothèques standard ---------------------------------------------------
 import logging  # Journalisation applicative interne
 
+
 # --- Entités du domaine -------------------------------------------------------
 from src.api.domain.entities import DemandeCredit, DecisionCredit  # Agrégats
 
@@ -20,7 +21,15 @@ from config import parametres  # Seuil de décision et autres réglages
 # Configuration du logger applicatif pour ce module
 journalapp = logging.getLogger(__name__)
 
+import os
+import inspect
+from src.tools.rafael.log_tool import LogTool
+log = LogTool(origin="UseCase")
 
+def get_filename(self) -> str:
+    """Devuelve el nombre del archivo actual con su extensión."""
+    return os.path.basename(__file__)
+ 
 # =============================================================================
 # CAS D'UTILISATION : EvaluerDemandeCreditUseCase
 # =============================================================================
@@ -87,6 +96,9 @@ class EvaluerDemandeCreditUseCase:
         RuntimeError
             Si le scoreur signale qu'il n'est pas prêt.
         """
+        
+        log.START_ACTION(self.__class__.__name__, inspect.currentframe().f_code.co_name , "BEGING")
+        
         # -- Vérification disponibilité du modèle -----------------------------
         if not self._scoreur.est_pret:
             raise RuntimeError(
@@ -94,22 +106,20 @@ class EvaluerDemandeCreditUseCase:
                 "Vérifiez que le modèle ONNX a bien été chargé au démarrage."
             )
 
-        journalapp.info(
-            "Évaluation de la demande id=%s", demande.id_demande
-        )
+        log.DEBUG_PARAMETER_VALUE("Évaluation de la demande" , demande.id_demande)
+        
+        log.STEP(2, "Inference" , "ONNX ou MLflow selon l'environnement")
 
         # -- Inférence via le port (ONNX ou MLflow selon l'environnement) -----
         decision = self._scoreur.predire(demande)
 
-        journalapp.info(
-            "Décision id=%s : %s (score=%.4f, latence=%.1f ms)",
-            demande.id_demande,
-            decision.decision.value,
-            decision.score.valeur,
-            decision.latence_ms,
-        )
-
+        log.DEBUG_PARAMETER_VALUE("probabilite_defaut" , demande.id_demande)
+        log.DEBUG_PARAMETER_VALUE("decision.value"     , decision.decision.value )
+        log.DEBUG_PARAMETER_VALUE("score.valeur"       , f"{decision.score.valeur:.4f}")
+        log.DEBUG_PARAMETER_VALUE("latence_ms"         , f"{decision.latence_ms:.2f}")
+        
         # -- Journalisation pour le monitoring du drift -----------------------
+        log.STEP(2, "Journalisation" , "Pour le monitoring du drift")
         try:
             self._journaliseur.journaliser(demande, decision)
         except IOError as erreur:
@@ -120,4 +130,5 @@ class EvaluerDemandeCreditUseCase:
                 erreur,
             )
 
+        log.FINISH_ACTION(self.__class__.__name__, inspect.currentframe().f_code.co_name , "FINISH")
         return decision

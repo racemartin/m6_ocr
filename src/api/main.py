@@ -28,6 +28,11 @@ from src.api.dependencies import initialiser_adaptateurs  # Warm-up modèle
 
 # --- Configuration -----------------------------------------------------------
 from config import parametres                         # Titre, version, seuil
+import os
+import inspect
+from src.tools.rafael.log_tool import LogTool
+log = LogTool(origin="UseCase")
+NOM_FICHIER = os.path.basename(__file__)
 
 
 # =============================================================================
@@ -60,29 +65,27 @@ async def lifespan(app: FastAPI):
     Args:
         app : Instance FastAPI (paramètre imposé par le protocole lifespan).
     """
-    # -- Phase démarrage : chargement du modèle en mémoire ------------------
-    print("\n============================================================================")
-    print("DÉMARRAGE — API SCORING CRÉDIT : PRÊT À DÉPENSER")
-    print("============================================================================")
-    print(f"  Backend modèle..........: {parametres.model_backend}")
-    print(f"  Seuil de décision.......: {parametres.seuil_decision}")
-    print(f"  Version API.............: {parametres.version_api}")
-    print("============================================================================")
+    log.START_ACTION(NOM_FICHIER, inspect.currentframe().f_code.co_name , "BEGING")
 
+    # -- Phase démarrage : chargement du modèle en mémoire ------------------
+    log.STEP(3, "DÉMARRAGE — API SCORING CRÉDIT", "PRÊT À DÉPENSER")
+    log.DEBUG_PARAMETER_VALUE("Backend modèle"      , parametres.model_backend)
+    log.DEBUG_PARAMETER_VALUE("Seuil de décision"   , parametres.seuil_decision)
+    log.DEBUG_PARAMETER_VALUE("Version API"         , parametres.version_api)
+    # log.log_io_functions()
+    
     try:
         initialiser_adaptateurs()
-        journal.info("Modèle chargé. Serveur prêt à recevoir des requêtes.")
+        log.LEVEL_7_INFO(NOM_FICHIER, "Modèle chargé. Serveur prêt à recevoir des requêtes.")
+        log.FINISH_ACTION(NOM_FICHIER, inspect.currentframe().f_code.co_name , "FINISH")
     except Exception as erreur:
-        journal.critical("Échec du chargement du modèle : %s", erreur)
+        log.LEVEL_3_CRITICAL(NOM_FICHIER, f"Échec du chargement du modèle : {erreur}")
         raise  # Empêche le démarrage si le modèle est inaccessible
 
     yield  # L'application est active à partir d'ici
 
     # -- Phase arrêt : libération des ressources ----------------------------
-    print("\n============================================================================")
-    print("ARRÊT — Libération des ressources.")
-    print("============================================================================")
-
+    log.LEVEL_7_INFO(NOM_FICHIER, "ARRÊT — Libération des ressources.")
 
 # =============================================================================
 # Création de l'application FastAPI

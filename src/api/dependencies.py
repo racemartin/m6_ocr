@@ -28,6 +28,11 @@ from config import parametres  # MODEL_BACKEND et paramètres associés
 # Configuration du logger applicatif pour ce module
 journalapp = logging.getLogger(__name__)
 
+import os
+import inspect
+from src.tools.rafael.log_tool import LogTool
+log = LogTool(origin="UseCase")
+NOM_FICHIER = os.path.basename(__file__)
 
 # =============================================================================
 # INSTANCES PARTAGÉES (pattern module-level singleton)
@@ -61,8 +66,8 @@ def initialiser_adaptateurs() -> None:
     global _scoreur, _journaliseur
 
     backend = parametres.model_backend.lower()
-    journalapp.info("Initialisation du backend de scoring : '%s'", backend)
-
+    log.START_INDETED_LEVEL(2, NOM_FICHIER, inspect.currentframe().f_code.co_name , "BEGIN")
+                            
     # -- Sélection et chargement de l'adaptateur de scoring ------------------
     if backend == "onnx":
         adaptateur = OnnxScorerAdaptater()
@@ -81,12 +86,10 @@ def initialiser_adaptateurs() -> None:
     # -- Instanciation du journaliseur JSONL ----------------------------------
     _journaliseur = JsonlJournaliseurAdapter()
 
-    journalapp.info(
-        "Adaptateurs initialisés — scoreur=%s, journaliseur=%s",
-        type(_scoreur).__name__,
-        type(_journaliseur).__name__,
-    )
+    log.DEBUG_PARAMETER_VALUE("Adaptateur initialisé", f"scoreur      = {type(_scoreur).__name__}")
+    log.DEBUG_PARAMETER_VALUE("Adaptateur initialisé", f"journaliseur = {type(_journaliseur).__name__}")
 
+    log.FINISH_INDETED_LEVEL(2, NOM_FICHIER, inspect.currentframe().f_code.co_name ,"FINISH")
 
 # =============================================================================
 # FOURNISSEURS DE DÉPENDANCES (injectés par FastAPI dans les routes)

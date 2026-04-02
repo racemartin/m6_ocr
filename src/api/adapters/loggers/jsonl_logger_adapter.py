@@ -19,6 +19,11 @@ from config import parametres  # Chemin du fichier predictions.jsonl
 
 # Configuration du logger applicatif pour ce module
 journalapp = logging.getLogger(__name__)
+import os
+import inspect
+from src.tools.rafael.log_tool import LogTool
+log = LogTool(origin="adapter")
+NOM_FICHIER = os.path.basename(__file__)
 
 
 # =============================================================================
@@ -64,15 +69,17 @@ class JsonlJournaliseurAdapter(IJournaliseurPredictions):
     # -------------------------------------------------------------------------
     def __init__(self) -> None:
         """Initialise le chemin et le verrou d'écriture concurrente."""
+        log.START_CALL_MANAGER_FUNCTION(self.__class__.__name__, inspect.currentframe().f_code.co_name , "BEGING")
+
         self._chemin_journal = parametres.chemin_predictions_jsonl
         self._verrou         = threading.Lock()  # Sécurité multi-threads
 
         # -- Création du répertoire parent si nécessaire ----------------------
         self._chemin_journal.parent.mkdir(parents=True, exist_ok=True)
-        journalapp.info(
-            "JournaliseurJSONL initialisé — fichier : %s",
-            self._chemin_journal,
-        )
+        
+        log.DEBUG_PARAMETER_VALUE("JournaliseurJSONL fichier", self._chemin_journal)
+        log.FINISH_CALL_MANAGER_FUNCTION(self.__class__.__name__, inspect.currentframe().f_code.co_name , "FINISH")
+
 
     # =========================================================================
     # JOURNALISATION D'UNE PRÉDICTION

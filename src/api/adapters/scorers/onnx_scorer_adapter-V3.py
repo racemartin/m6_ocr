@@ -75,32 +75,20 @@ NOM_FICHIER = os.path.basename(__file__)
 
 # =============================================================================
 # Mapping : champs Python -> noms colonnes du ColumnTransformer de m6_ocr.
-#
-# Ces noms correspondent aux colonnes vues par le preprocesseur au moment
-# du fit() dans m6_ocr. Vérifiables via le log DIAGNOSTIC au démarrage.
-#
-# Convention de nommage du preprocesseur de m6_ocr :
-#   - Colonnes catégorielles OHE : "ohe__<nom_colonne>_<valeur>"
-#     ex. : "ohe__name_contract_type_cash_loans"
-#   - Colonnes numériques StandardScaler : "ss__<nom_colonne>"
-#     ex. : "ss__days_birth"
-#
-# MAPPING_COLONNES : champ Python -> préfixe de colonne preprocesseur
-# (sans le préfixe ohe__/ss__ ni le suffixe _<valeur> pour les OHE)
+# Ajustez si les noms de colonnes different dans votre feature registry.
 # =============================================================================
 MAPPING_COLONNES = {
-    # Champ Python              : Nom colonne dans le preprocesseur (m6_ocr)
-    "age"                     : "days_birth",
-    "revenu"                  : "amt_income_total",
-    "montant_pret"            : "amt_credit",
-    "duree_pret_mois"         : "duree_pret_mois",
+    "age"                     : "DAYS_BIRTH",
+    "revenu"                  : "AMT_INCOME_TOTAL",
+    "montant_pret"            : "AMT_CREDIT",
+    "duree_pret_mois"              : "duree_pret_mois",
     "jours_retard_moyen"      : "avg_dpd_per_delinquency",
     "taux_incidents"          : "delinquency_ratio",
     "taux_utilisation_credit" : "credit_utilization_ratio",
     "nb_comptes_ouverts"      : "num_open_accounts",
-    "type_residence"          : "name_housing_type",
-    "objet_pret"              : "name_type_suite",
-    "type_pret"               : "name_contract_type",
+    "type_residence"          : "residence_type",
+    "objet_pret"              : "loan_purpose",
+    "type_pret"               : "loan_type",
 }
 
 # Mapping inverse : nom colonne preprocesseur -> nom feature originale
@@ -150,18 +138,15 @@ class OnnxScorerAdaptater(ICreditScorer):
     # =========================================================================
     def __init__(self) -> None:
         """Initialise l'adaptateur sans charger les ressources (lazy)."""
-        self._session          : Optional[ort.InferenceSession] = None
-        self._preprocesseur    : Optional[object]               = None
-        self._modele_lgbm      : Optional[object]               = None
-        self._explainer_shap   : Optional[shap.TreeExplainer]   = None
-        self._background_shap  : Optional[np.ndarray]           = None
-        self._nom_entree       : Optional[str]                  = None
-        self._seuil            : float  = parametres.seuil_decision
-        self._noms_features_enc: List[str] = []  # Noms bruts du preprocesseur
-        self._nb_features      : int    = 0      # Renseigne au chargement
-        # "probability" : sortie SHAP en espace probabilité [0,1]
-        # "raw"         : sortie SHAP en log-odds → sigmoid appliqué
-        self._mode_shap        : str    = "probability"
+        self._session        : Optional[ort.InferenceSession] = None
+        self._preprocesseur  : Optional[object]               = None
+        self._modele_lgbm    : Optional[object]               = None
+        self._explainer_shap : Optional[shap.TreeExplainer]   = None
+        self._background_shap: Optional[np.ndarray]           = None
+        self._nom_entree     : Optional[str]                  = None
+        self._seuil          : float  = parametres.seuil_decision
+        self._noms_features_enc: List[str] = []  # Noms apres OHE
+        self._nb_features    : int   = 0                   # Renseigne au chargement
 
     # =========================================================================
     def charger(self) -> None:
@@ -231,23 +216,6 @@ class OnnxScorerAdaptater(ICreditScorer):
         
         self._preprocesseur = joblib.load(chemin_preproc)
 
-        # -- DIAGNOSTIC: Nombres de features encodees ------------------------
-        try:
-            # Extraer los nombres reales del preprocesador
-            noms_encodees = self._preprocesseur.get_feature_names_out()
-            self._noms_features_enc = noms_encodees  # Guardar para SHAP
-            
-            log.LEVEL_7_INFO(NOM_FICHIER, f"DIAGNOSTIC noms features encodees ({min(30, len(noms_encodees))} premiers)")
-            
-            # Iterar y loguear con el formato exacto que pediste
-            for i, nombre in enumerate(noms_encodees[:30]):
-                # f"feat[{i:03}]" asegura el formato 000, 001...
-                log.DEBUG_PARAMETER_VALUE(f"feat[{i:03}]", nombre)
-                
-        except Exception as e:
-            log.LEVEL_5_WARNING(NOM_FICHIER, f"Impossible d'extraire les noms de features: {e}")
-
-        
         # -- Detection du nombre de features apres transformation ------------
         try:
             nb_sortie = self._session.get_inputs()[0].shape[1]
@@ -581,47 +549,39 @@ class OnnxScorerAdaptater(ICreditScorer):
         """
         Calcule les SHAP values pour la classe 1 (defaut).
 
-        Gère les deux formats de retour selon la version SHAP installée :
-          - Nouvelle API (>= 0.40) : liste [ndarray_cl0, ndarray_cl1]
-          - Ancienne API : ndarray 2D shape (1, N)
-
-        Mode "raw" (tree_path_dependent) :
-            Applique sigmoid pour convertir les log-odds en [0, 1].
+        Le TreeExplainer de SHAP opère directement sur le modele LightGBM
+        sklearn (arbre de decision exact, pas approximation lineaire).
+        C'est beaucoup plus precis que KernelExplainer ou GradientExplainer.
 
         Args:
-            X : np.ndarray shape (1, N) — sortie du preprocesseur.
+            X : Features transformees shape (1, N), dtype float64.
 
         Returns:
             SHAP values shape (N,) pour la classe 1.
+            Chaque valeur represente la contribution de la feature i
+            a la deviation par rapport a la prediction moyenne.
         """
         try:
+            # shap_values retourne shape (1, N) pour une seule observation
             sv = self._explainer_shap.shap_values(X)
 
-            # -- Extraction de la classe 1 -----------------------------------
-            if isinstance(sv, list):
-                # Nouvelle API : [ndarray_classe0, ndarray_classe1]
-                # sv[1] peut être shape (1, N) ou (N,) selon la version
-                arr = np.array(sv[1])
-                sv_classe1 = arr[0] if arr.ndim == 2 else arr.flatten()
+            # LightGBM binaire : sv est shape (1, N) directement
+            if isinstance(sv, np.ndarray) and sv.ndim == 2:
+                return sv[0]                    # shape (N,)
 
-            elif isinstance(sv, np.ndarray) and sv.ndim == 2:
-                # Ancienne API : shape (1, N) directement
-                sv_classe1 = sv[0]
+            # Certaines versions retournent une liste [classe_0, classe_1]
+            if isinstance(sv, list) and len(sv) == 2:
+                return np.array(sv[1])[0]      # classe 1, premiere obs
 
-            else:
-                sv_classe1 = np.array(sv).flatten()
-
-            # -- Conversion log-odds → [0, 1] pour mode raw -----------------
-            if self._mode_shap == "raw":
-                sv_classe1 = 1.0 / (1.0 + np.exp(-sv_classe1))
-
-            return sv_classe1
+            # Fallback
+            return np.array(sv).flatten()
 
         except Exception as erreur:
             journalapp.warning(
                 "Echec calcul SHAP (non bloquant) : %s", erreur
             )
-            nb_features = X.shape[1] if hasattr(X, "shape") and X.ndim == 2 else len(X)
+            # Retourner des zeros plutot que de bloquer la reponse
+            nb_features = X.shape[1] if X.ndim == 2 else len(X)
             return np.zeros(nb_features)
 
     # -------------------------------------------------------------------------
@@ -709,40 +669,30 @@ class OnnxScorerAdaptater(ICreditScorer):
     # -------------------------------------------------------------------------
     def _trouver_feature_originale(self, nom_encode: str) -> str:
         """
-        Retrouve la feature originale depuis le nom brut d'une colonne encodee.
+        Retrouve la feature originale depuis le nom d'une colonne encodee.
 
-        Convention de nommage du préprocesseur m6_ocr :
-          - Numériques (StandardScaler) : "ss__<nom_colonne>"
-            ex. : "ss__days_birth" -> "age"
-          - Catégorielles (OHE)         : "ohe__<nom_colonne>_<valeur>"
-            ex. : "ohe__name_contract_type_cash_loans" -> "type_pret"
-
-        Stratégie :
-            Pour chaque nom brut, on extrait la partie après le préfixe
-            (ss__ ou ohe__), puis on cherche dans MAPPING_COLONNES la valeur
-            (nom colonne preprocesseur) qui est un préfixe de cette partie.
+        Logique :
+            - Si le nom est directement dans MAPPING_INVERSE : match direct
+              (features numeriques scalees, ex: "AMT_CREDIT" -> "montant_pret")
+            - Sinon, chercher un prefixe correspondant a un nom du mapping
+              (features OHE, ex: "residence_type_Owned" -> "type_residence")
 
         Args:
-            nom_encode : Nom brut de la colonne (ex. "ohe__name_housing_type_rented").
+            nom_encode : Nom de la colonne apres transformation sklearn.
 
         Returns:
-            Champ Python correspondant (ex. "type_residence"), ou "inconnu".
+            Nom de la feature originale correspondante, ou "inconnu".
         """
-        # -- Supprimer le préfixe du step sklearn (ohe__, ss__, num__, cat__...) -
-        # On coupe au premier __ pour obtenir le nom de colonne brut
-        if "__" in nom_encode:
-            partie = nom_encode.split("__", 1)[1]   # "name_housing_type_rented"
-        else:
-            partie = nom_encode
+        # -- Match direct (features numeriques) ------------------------------
+        if nom_encode in MAPPING_INVERSE:
+            return MAPPING_INVERSE[nom_encode]
 
-        # -- Match direct (feature numérique scalée : partie == nom_colonne) --
-        if partie in MAPPING_INVERSE:
-            return MAPPING_INVERSE[partie]
-
-        # -- Match par préfixe (feature OHE : partie commence par nom_colonne) -
-        # "name_housing_type_rented" commence par "name_housing_type"
-        for nom_col_preproc, nom_orig in MAPPING_INVERSE.items():
-            if partie.startswith(nom_col_preproc + "_") or partie == nom_col_preproc:
+        # -- Match par prefixe (features OHE) --------------------------------
+        # Ex: "residence_type_Owned" commence par "residence_type"
+        for nom_col_preprocesseur, nom_orig in MAPPING_INVERSE.items():
+            if nom_encode.startswith(nom_col_preprocesseur + "_"):
+                return nom_orig
+            if nom_encode.startswith(nom_col_preprocesseur):
                 return nom_orig
 
         return "inconnu"
@@ -752,17 +702,22 @@ class OnnxScorerAdaptater(ICreditScorer):
         """
         Recupere les noms des features apres transformation sklearn.
 
-        Conserve les noms BRUTS tels que produits par get_feature_names_out()
-        (ex. : "ohe__name_contract_type_cash_loans", "ss__days_birth").
-        Le nettoyage des prefixes est délégué à _trouver_feature_originale()
-        qui connaît la convention de nommage du preprocesador de m6_ocr.
+        Le ColumnTransformer sklearn expose get_feature_names_out()
+        depuis sklearn >= 1.0. En cas d'echec, genere des noms generiques.
 
         Returns:
-            Liste des noms bruts de colonnes dans l'espace transforme.
+            Liste des noms de colonnes dans l'espace transforme.
         """
         try:
             if hasattr(self._preprocesseur, "get_feature_names_out"):
-                return list(self._preprocesseur.get_feature_names_out())
+                noms = list(self._preprocesseur.get_feature_names_out())
+                # Nettoyer les prefixes "num__" et "cat__" ajoutes par sklearn
+                noms = [
+                    n.replace("num__", "").replace("cat__", "")
+                    .replace("remainder__", "")
+                    for n in noms
+                ]
+                return noms
         except Exception as e:
             journalapp.warning(
                 "get_feature_names_out indisponible : %s", e

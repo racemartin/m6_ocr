@@ -36,6 +36,11 @@ journal = logging.getLogger(__name__)
 # Instance du router FastAPI pour ce groupe de routes
 routeur = APIRouter()
 
+import os
+import inspect
+from src.tools.rafael.log_tool import LogTool
+log = LogTool(origin="router ")
+NOM_FICHIER = os.path.basename(__file__)
 
 # ##############################################################################
 # Route : POST /predict
@@ -77,13 +82,10 @@ def evaluer_credit(
         HTTPException 422 : Données invalides (validation Pydantic auto).
         HTTPException 500 : Erreur interne du moteur de scoring.
     """
-    journal.info("============================================================")
-    journal.info(
-        "POST /predict | age=%d | revenu=%.0f € | montant=%.0f €",
-        donnees_entree.age,
-        donnees_entree.revenu,
-        donnees_entree.montant_pret,
-    )
+    log.START_ACTION(NOM_FICHIER, inspect.currentframe().f_code.co_name , "POST /predict BEGING")
+    log.DEBUG_PARAMETER_VALUE("age"          , donnees_entree.age)
+    log.DEBUG_PARAMETER_VALUE("revenu"       , donnees_entree.revenu)
+    log.DEBUG_PARAMETER_VALUE("montant_pret" , donnees_entree.montant_pret)
 
     # -- Conversion schéma API → entité domaine ------------------------------
     demande = _schema_vers_entite(donnees_entree)
@@ -105,18 +107,17 @@ def evaluer_credit(
             detail      = "Erreur interne du moteur de scoring.",
         )
 
-    journal.info("------------------------------------------------------------")
-    journal.info(
-        "Réponse /predict | id=%s | décision=%s | prob=%.4f | %.1f ms",
-        decision.id_demande,
-        decision.decision.value,  # .value porque es un Enum
-        decision.score.valeur,    # .score.valeur para entrar al float del objeto
-        decision.latence_ms,
-    )
-    journal.info("------------------------------------------------------------")
+    log.LEVEL_7_INFO(NOM_FICHIER, "Réponse /predict")
+    log.DEBUG_PARAMETER_VALUE("id_demande"        , decision.id_demande )
+    log.DEBUG_PARAMETER_VALUE("decision.value"    , decision.decision.value)
+    log.DEBUG_PARAMETER_VALUE("score.valeur"      , decision.score.valeur)
+    log.DEBUG_PARAMETER_VALUE("latence_ms"       , decision.latence_ms)
 
     # -- Conversion entité domaine → schéma de réponse ----------------------
     # -- Conversion entité domaine (lógica) → schéma de réponse (JSON) -------
+    
+    log.FINISH_ACTION(NOM_FICHIER, inspect.currentframe().f_code.co_name , "FINISH")
+    
     return ClientDataOutput(
         id_demande         = str(decision.id_demande),
 
@@ -131,7 +132,17 @@ def evaluer_credit(
     
         seuil_utilise      = decision.seuil_utilise,
        
-        explications_shap  = decision.explications_shap
+        # MAPEAMOS la lista de objetos de dominio a diccionarios compatibles con Pydantic
+        explication_shap   = [
+            {
+                "feature":       exp.nom_feature,
+                "valeur_client": str(exp.valeur_originale),
+                "impact_shap":   float(exp.impact_shap),
+                "direction":     exp.direction,
+                "explication":   getattr(exp, 'explication', None)
+            }
+            for exp in decision.explications_shap
+        ]
     )
 
 # ##############################################################################
