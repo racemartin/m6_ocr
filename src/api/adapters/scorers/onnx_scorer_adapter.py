@@ -67,12 +67,17 @@ import warnings
 
 # Journalisation du module
 journalapp = logging.getLogger(__name__)
+    
 import os
 import inspect
 from src.tools.rafael.log_tool import LogTool
 log = LogTool(origin="adapter")
 NOM_FICHIER = os.path.basename(__file__)
 
+# Limpiar handlers duplicados
+for handler in logging.root.handlers[:]:
+    logging.root.removeHandler(handler)
+    
 # =============================================================================
 # Mapping : champs Python -> noms colonnes du ColumnTransformer de m6_ocr.
 #
@@ -403,7 +408,7 @@ class OnnxScorerAdaptater(ICreditScorer):
 
         # ---- Etape 2: Transformation sklearn --------------------------------
         log.STEP(6, "2. Transformation sklearn")
-        
+        start_sk = time.perf_counter()
         try:
             # Capturamos los avisos de sklearn para que no ensucien el terminal
             with warnings.catch_warnings():
@@ -417,6 +422,13 @@ class OnnxScorerAdaptater(ICreditScorer):
                 f"Echec preprocessing : {erreur}\n"
                 f"Colonnes fournies : {list(df_entree.columns)}"
             ) from erreur
+        
+        elapsed      = time.perf_counter() - start_sk
+        hours, rem   = divmod(elapsed, 3600)
+        minutes, sec = divmod(rem, 60)
+        exec_time    = f"{int(hours):02d}:{int(minutes):02d}:{sec:09.6f}"
+        
+        log.DEBUG_PARAMETER_VALUE("Durée Preproc", exec_time)
         
         # Conversión de sparse a dense si es necesario
         if hasattr(X_transforme, "toarray"):
@@ -444,6 +456,13 @@ class OnnxScorerAdaptater(ICreditScorer):
         )
         latence_ms = (time.perf_counter() - debut_ms) * 1000.0
 
+        elapsed      = time.perf_counter() - debut_ms
+        hours, rem   = divmod(elapsed, 3600)
+        minutes, sec = divmod(rem, 60)
+        exec_time    = f"{int(hours):02d}:{int(minutes):02d}:{sec:09.6f}"
+        
+        log.DEBUG_PARAMETER_VALUE("Durée Inference", exec_time)
+        log.DEBUG_PARAMETER_VALUE("latence_ms", latence_ms)
 
         # ---- Etape 4: extraction de la probabilite de defaut ----------------
         log.STEP(6, "4. extraction de la probabilite de defaut")
@@ -455,6 +474,7 @@ class OnnxScorerAdaptater(ICreditScorer):
         
         # Activamos el modo "record" para interceptar los avisos en una lista
         with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always") # Forzamos a que se registren
             # No filtramos, queremos que se registre en 'w'
             shap_values = self._calculer_shap(X_transforme)
             

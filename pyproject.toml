@@ -47,6 +47,9 @@ dependencies = [
     "kaleido>=1.2.0",
     "missingno>=0.5.2",
     "onnxmltools>=1.16.0",
+    # --- Dashboard & Visualisation ---
+    "streamlit==1.38.0",          # Interface de supervision interactive
+    "onnxruntime>=1.24.4",
 ]
 
 # #############################################################################
@@ -126,7 +129,7 @@ phase4   = "src.pipelines.phase4_hyperparameter_tuning:main"
 [tool.ruff]
 # Longueur de ligne maximale pour la lisibilité
 line-length = 120
-
+ 
 [tool.ruff.lint]
 # select....: Groupes de règles activés pour l'analyse
 # "E".......: Erreurs de style (PEP 8 standard)
