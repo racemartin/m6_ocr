@@ -1,0 +1,152 @@
+[project]
+name            = "mlops_1_2_mlflow"
+version         = "0.1.0"
+description     = "Construire et optimiser un modèle de classification binaire suivant le cycle de vie avec MLFlow"
+authors         = [{name = "Rafael CEREZO MARTIN", email = "rafael.cerezo.martin@icloud.com"}]
+license         = {text = "MIT"}
+readme          = "README.md"
+requires-python = ">=3.12,<3.14"
+
+# #############################################################################
+# DÉPENDANCES DE PRODUCTION (CORE + API + ML + DB)
+# #############################################################################
+dependencies = [
+    # --- API & Serveur ---
+    "fastapi>=0.104.1",          # Framework web moderne pour créer l'API
+    "uvicorn[standard]>=0.24.0", # Serveur ASGI ultra-rapide pour exécuter FastAPI
+    "pydantic>=2.5.0",           # Validation de données et gestion de schémas (Inputs/Outputs)
+    "pydantic-settings>=2.1.0",  # Gestion simplifiée des paramètres de configuration via env vars
+    "python-multipart>=0.0.6",   # Support pour le parsing de formulaires et fichiers via l'API
+    "gunicorn>=21.2.0",          # Gestionnaire de serveurs pour le déploiement en production Linux
+    "gradio>=6.5.1",             # Interface utilisateur rapide pour tester le modèle de scoring
+    # --- Machine Learning & Analyse ---
+    "pandas>=2.3.3",             # Manipulation de DataFrames (données clients, historiques)
+    "polars>=1.37.1",            # Traitement de données ultra-rapide (alternative performante à Pandas)
+    "numpy>=2.2.2",              # Calcul numérique et gestion de tableaux
+    "scikit-learn>=1.3.2",       # Algorithmes de ML classiques et prétraitement
+    "lightgbm>=4.3.0",           # Framework de boosting rapide utilisant l'apprentissage par arbre
+    "catboost>=1.2.8",           # Gradient Boosting optimisé pour variables catégorielles
+    "xgboost>=2.1.4",            # Algorithme de boosting haute performance
+    "shap>=0.46.0",              # Explicabilité du modèle (Interprétation des décisions de crédit)
+    "imbalanced-learn>=0.14.1",  # Gestion du déséquilibre des classes (SMOTE, Under-sampling)
+    "joblib>=1.3.2",             # Sérialisation et chargement des modèles
+    # --- MLOps, Serving & Monitoring ---
+    "mlflow>=2.8.1",             # Gestion du cycle de vie du ML (Suivi des expériences de scoring)
+    "bentoml>=1.1.9",            # Packaging et service de modèles haute performance
+    "evidently>=0.4.11",         # Monitoring du modèle (Détection de Data Drift et dégradation)
+    # --- Base de données & Persistance ---
+    "sqlalchemy>=2.0.23",        # ORM pour interagir avec PostgreSQL via des objets Python
+    "psycopg2-binary>=2.9.9",    # Adaptateur PostgreSQL pour Python (requis par SQLAlchemy)
+    "alembic>=1.12.1",           # Outil de migration pour versionner le schéma de la DB
+    # --- Utilitaires ---
+    "python-dotenv>=1.2.1",      # Chargement des variables secrètes (.env) comme les clés API
+    "optuna>=4.7.0",
+    "optuna-dashboard>=0.20.0",
+    "optuna-integration>=4.7.0",
+    "plotly>=5.24.1",
+    "kaleido>=1.2.0",
+    "missingno>=0.5.2",
+    "onnxmltools>=1.16.0",
+]
+
+# #############################################################################
+# GROUPES DE DÉPENDANCES (DÉVELOPPEMENT & TEST)
+# #############################################################################
+[dependency-groups]
+# [project.optional-dependencies] 
+dev = [
+    # Qualité et Style
+    "black>=25.11.0",            # Formateur de code automatique (Norme PEP 8)
+    "isort>=5.12.0",             # Tri automatique des imports pour plus de clarté
+    "flake8>=7.3.0",             # Linter pour détecter erreurs de syntaxe et style
+    "ruff>=0.14.14",             # Linter et formateur ultra-rapide (remplace plusieurs outils)
+    "mypy>=1.7.1",               # Vérificateur de types statique pour éviter les bugs
+    "pre-commit>=4.5.0",         # Automatisation des tests de style avant chaque commit Git
+    "tox>=4.27.0",               # Automatisation de la création d'environnements de test isolés
+    # Environnement de travail
+    "jupyterlab>=4.5.2",         # Interface interactive pour les Notebooks et l'analyse SHAP
+    "ipykernel>=7.1.0",          # Noyau Python pour l'exécution dans Jupyter
+    "ydata-profiling>=4.18.0",   # Génération de rapports exploratoires automatiques (EDA)
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "pytest-asyncio>=1.3.0",
+]
+
+[project.optional-dependencies]
+test = [                         # uv pip install -e ".[test]"
+    # Framework de test (Requis pour la fiabilité du POC)
+    "pytest>=7.4.3",             # Framework principal pour les tests unitaires
+    "pytest-cov>=7.0.0",         # Mesure du taux de couverture de tests du code source
+    "pytest-asyncio>=1.3.0",     # Support pour tester les endpoints asynchrones de FastAPI
+    "pytest-xprocess>=1.0.2",    # Gestion des processus externes pendant les tests
+    "httpx>=0.25.2",             # Client HTTP pour simuler des appels à l'API pendant les tests
+    "faker>=20.1.0",             # Génération de données factices pour tester les cas limites
+]
+
+# #############################################################################
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.uv]
+managed = true
+package = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::pydantic.PydanticDeprecatedSince20",
+    "ignore::UserWarning:matplotlib.*",
+]
+markers = [
+    "unit: tests unitaires purs (sans services externes)",
+    "fast: tests rapides (< 10ms)",
+    "integration: tests nécessitant des services externes (PostgreSQL, MLflow)",
+]
+
+# ############################################################################# 
+# [project.scripts]
+# uv pip install -e .
+# phase1_1 = "src.pipelines.phase1_1_inject_raw:main"
+#            └──────────────┬────────────────┘  └┬┘
+#                     módulo Python           función
+phase1_1 = "src.pipelines.phase1_1_inject_raw:main"
+phase1_2 = "src.pipelines.phase1_2_views_fe_enum:main"
+phase2   = "src.pipelines.phase2_feature_engineering:main"
+phase3   = "src.pipelines.phase3_model_training_mlflow:main"
+phase4   = "src.pipelines.phase4_hyperparameter_tuning:main"
+
+# #############################################################################
+# CUSTOM SETTINGS FOR CODE FORMATTING (By Rafael CEREZO MATIN)
+# #############################################################################
+
+[tool.ruff]
+# Longueur de ligne maximale pour la lisibilité
+line-length = 120
+ 
+[tool.ruff.lint]
+# select....: Groupes de règles activés pour l'analyse
+# "E".......: Erreurs de style (PEP 8 standard)
+# "F".......: Erreurs logiques et de syntaxe (Pyflakes)
+# "W".......: Avertissements sur les pratiques déconseillées
+select = ["E", "F", "W"]
+
+# ignore....: Règles spécifiques désactivées pour permettre ton style visuel
+# "E221"....: Espaces multiples avant l'opérateur (alignement des '=')
+# "E241"....: Espaces multiples après une virgule (alignement des listes)
+# "E203"....: Espace avant ':' → autorise l'alignement des ':' (dicts, prints)
+# "E271"....: Espaces multiples après 'import' ou 'from'
+# "E701"....: Plusieurs instructions sur une ligne après ':'
+# "E501"....: Longueur de ligne excédée (commentaires, lignes longues)
+# "W291"....: Espaces blancs à la fin des lignes
+# "W293"....: Espaces blancs sur les lignes vides
+ignore = ["E221", "E241", "E203", "E271", "E701", "E501", "W291", "W293"]
+
+[tool.ruff.format]
+# Paramètres du formateur automatique
+quote-style = "double" 
+indent-style = "space" 
+skip-magic-trailing-comma = true

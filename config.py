@@ -8,8 +8,7 @@
 from pathlib import Path  # Chemins indépendants du système d'exploitation
 
 # --- Pydantic settings (lecture .env et variables d'environnement) -----------
-from pydantic_settings import BaseSettings  # Gestion config typée
-
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 
@@ -34,6 +33,11 @@ class Paramètres(BaseSettings):
         Seuil de probabilité de défaut pour la décision binaire.
         0.35 = si proba_défaut ≥ 0.35 → crédit refusé.
     """
+
+    # Esto le dice a Pydantic que ignore el prefijo "model_" como protegido
+    model_config = SettingsConfigDict(
+        protected_namespaces=('settings_',)
+    )
 
     # -- Sélection du backend de scoring --------------------------------------
     model_backend: str = "onnx"  # "onnx" | "mlflow" — voir dependencies.py

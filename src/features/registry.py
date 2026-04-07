@@ -89,9 +89,9 @@ def safe_log1p(X):
     Calcule log(1+x) en protégeant contre les valeurs négatives.
     Défini au niveau global pour permettre la sérialisation via pickle.
     """
-    import numpy as np
-    return np.log1p(np.maximum(X, 0))
-    
+    # Aseguramos que X sea un array de numpy con tipo flotante
+    X_arr = np.asanyarray(X).astype(float)
+    return np.log1p(np.maximum(X_arr, 0))
 
 class FeatureConfigurator:
     """

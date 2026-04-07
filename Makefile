@@ -304,6 +304,18 @@ dashboard:
 		--server.address 0.0.0.0
 
 # =============================================================================
+# Interface de Simulation (Prise de décision en temps réel)
+# =============================================================================
+simulate:
+	@echo "============================================================================"
+	@echo "Simulateur de Crédit → http://localhost:8502"
+	@echo "Assurez-vous que l'API est lancée (make api)"
+	@echo "============================================================================"
+	$(PYTHON) -m streamlit run monitoring/simulator.py \
+	   --server.port    8502                      \
+	   --server.address 0.0.0.0
+
+# =============================================================================
 docker-build:
 	@echo "Construction de l'image Docker multi-stage..."
 	docker build -t m7-scoring-credit:latest .

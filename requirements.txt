@@ -29,7 +29,7 @@ onnxmltools>=1.11.0
 # --- Conversion ONNX (scripts locaux uniquement) -----------------------------
 #skl2onnx        ==1.17.0    # Conversion sklearn Pipeline → ONNX
 skl2onnx         >= 1.18.0   # primera versión que soporta onnx 1.16+
-scikit-learn     ==1.5.2     # Requis par skl2onnx pour la conversion
+scikit-learn     ==1.8.0     # Requis par skl2onnx pour la conversion
 
 # --- MLflow (développement local uniquement) ---------------------------------
 mlflow           ==2.14.0    # Tracking et registre de modèles

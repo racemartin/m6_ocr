@@ -1,0 +1,86 @@
+[project]
+name            = "mlops_1_2_mlflow"
+version         = "0.1.0"
+description     = "Construire et optimiser un modèle de classification binaire suivant le cycle de vie avec MLFlow"
+authors         = [{name = "Rafael CEREZO MARTIN", email = "rafael.cerezo.martin@icloud.com"}]
+license         = {text = "MIT"}
+readme          = "README.md"
+requires-python = ">=3.12,<3.14"
+
+# #############################################################################
+# DÉPENDANCES DE PRODUCTION (CORE + API + ML + MONITORING)
+# #############################################################################
+dependencies = [
+    # --- API FastAPI & Serveur ---
+    "fastapi==0.115.0",           # Cadre API asynchrone haute performance
+    "uvicorn[standard]==0.30.6",  # Serveur ASGI pour FastAPI
+    "pydantic==2.8.2",            # Validation des données et schémas JSON
+    "pydantic-settings==2.4.0",   # Gestion des variables d'environnement
+    "python-multipart>=0.0.6",    # Support pour le parsing de formulaires
+    "gunicorn>=21.2.0",           # Gestionnaire de serveurs (Production Linux)
+    
+    # --- Inférence & Machine Learning ---
+    "onnx>=1.16.0",               # Format de modèle interopérable
+    "onnxruntime>=1.19.0",        # Runtime CPU pour inférence rapide
+    "numpy==1.26.4",              # Manipulation des tenseurs
+    "scikit-learn==1.5.2",        # Framework ML et preprocessing
+    "lightgbm==4.5.0",            # Modèle de gradient boosting
+    "joblib==1.4.2",              # Chargement des pipelines sérialisés
+    "onnxmltools>=1.11.0",        # Convertisseur LightGBM -> ONNX
+    "skl2onnx>=1.18.0",           # Conversion sklearn Pipeline -> ONNX
+    
+    # --- MLflow & Tracking ---
+    "mlflow==2.14.0",             # Cycle de vie, tracking et registre
+    
+    # --- Analyse de Drift & Monitoring ---
+    "evidently==0.4.33",          # Détection de drift (100% Open Source)
+    "pandas==2.2.2",              # Manipulation de DataFrames
+    
+    # --- Dashboard & Visualisation ---
+    "streamlit==1.38.0",          # Interface de supervision interactive
+    "plotly==5.24.1",             # Graphiques interactifs
+    "gradio>=6.5.1",              # UI rapide pour tests de scoring
+
+    # --- Utilitaires ---
+    "python-dotenv>=0.5.1",       # Chargement des fichiers .env
+    "click",                      # Création d'interfaces CLI
+    "awscli>=1.30.0",             # Interaction avec AWS S3 / Cloud
+]
+
+# #############################################################################
+# DÉPENDANCES DE DÉVELOPPEMENT & TESTS
+# #############################################################################
+[tool.uv]
+dev-dependencies = [
+    "pytest==8.3.3",              # Framework de tests unitaires
+    "pytest-cov==5.0.0",          # Mesure de couverture de code
+    "flake8",                     # Linter de style
+    "ruff",                       # Linter/Formatter ultra-rapide
+    "coverage",                   # Rapport de couverture
+    "sphinx",                     # Génération de documentation
+]
+
+# #############################################################################
+# CUSTOM SETTINGS FOR CODE FORMATTING (By Rafael CEREZO MARTIN)
+# #############################################################################
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+# "E221", "E203", etc. son gestionados automáticamente por el formateador de Ruff
+select = ["E", "F", "W"]
+ignore = ["E221", "E241", "E203", "E271", "E701", "E501", "W291", "W293"]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+
+# #############################################################################
+# SCRIPTS DE PHASES DU PROJET
+# #############################################################################
+[project.scripts]
+phase1   = "src.pipelines.phase1_data_cleaning:main"
+phase2   = "src.pipelines.phase2_feature_engineering:main"
+phase3   = "src.pipelines.phase3_model_training_mlflow:main"
+phase4   = "src.pipelines.phase4_hyperparameter_tuning:main"
+drift    = "scripts.drift_analysis:main"

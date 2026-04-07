@@ -11,6 +11,8 @@ import os
 import inspect
 import time
 from pathlib import Path
+import joblib
+from config import DOSSIER_ARTEFACT # Asegúrate de que apunte a model_artifact/
 
 # --- Bibliothèques tierces : données -----------------------------------------
 import pandas as pd
@@ -30,6 +32,11 @@ from config import (
     FICHIER_DONNEES_REF,
     RACINE_PROJET,
 )
+
+import warnings
+
+# Filtrar el aviso específico de Pydantic antes de que cargue el resto del sistema
+warnings.filterwarnings("ignore", message='.*protected namespace "model_".*')
 
 # Initialisation du LogTool
 log = LogTool(origin="drift")
@@ -109,21 +116,102 @@ def main() -> None:
         log.LEVEL_3_CRITICAL(NOM_FICHIER, f"Echec chargement : {str(e)}")
         sys.exit(1)
 
-    # ---- ETAPE 2: Harmonisation ---------------------------------------------
-    log.STEP(6, "2. Harmonisation des colonnes")
-    features_communes = [c for c in FEATURES_NUMERIQUES if c in df_ref.columns and c in df_cur.columns]
-    
-    df_ref_ali = df_ref[features_communes].copy()
-    df_cur_ali = df_cur[features_communes].copy()
-    
-    log.DEBUG_PARAMETER_VALUE("Features analysées", len(features_communes))
+    # ---- ETAPE 2: Harmonisation via Preprocesseur ---------------------------
+    log.STEP(6, "2. Harmonisation via Preprocesseur")
 
-    print(f"Columnas Referencia: {df_ref.columns.tolist()}")
-    print(f"Columnas Actual: {df_cur.columns.tolist()}")
+    # -- Chargement du preprocesseur ------------------------------------------
+    preprocessor = joblib.load(DOSSIER_ARTEFACT / "preprocessor.pkl")
 
-    if len(df_ref.columns) == 0 or len(df_cur.columns) == 0:
-        print("ERROR: ¡Uno de los DataFrames no tiene columnas!")
-    
+    try:
+        cols_requises = list(preprocessor.feature_names_in_)
+    except AttributeError:
+        log.LEVEL_4_ERROR(NOM_FICHIER, "No se pudo extraer feature_names_in_ del preprocesador.")
+        sys.exit(1)
+
+    noms_features = list(preprocessor.get_feature_names_out())
+
+    # -- Mapeo predictions.jsonl (noms Python) → colonnes du preprocesseur ----
+    MAPPING_REVERSO = {
+        "age"                     : "days_birth",
+        "type_residence"          : "name_housing_type",
+        "revenu"                  : "amt_income_total",
+        "montant_pret"            : "amt_credit",
+        "duree_pret_mois"         : "duree_pret_mois",
+        "type_pret"               : "name_contract_type",
+        "objet_pret"              : "name_type_suite",
+        "jours_retard_moyen"      : "avg_dpd_per_delinquency",
+        "taux_incidents"          : "delinquency_ratio",
+        "taux_utilisation_credit" : "credit_utilization_ratio",
+        "nb_comptes_ouverts"      : "num_open_accounts",
+    }
+
+    # -- Colonnes catégorielles (ne pas forcer float sur ces colonnes) ---------
+    # Le preprocesseur attend des chaînes pour l'OneHotEncoder.
+    COLS_CATEGORIES = {"name_housing_type", "name_contract_type", "name_type_suite"}
+
+    # -- Construction df_full_cur (predictions → espace preprocesseur) --------
+    # Initialiser avec None (pas float) pour éviter de casser les catégorielles
+    # df_full_cur = pd.DataFrame(index=df_cur.index, columns=cols_requises, dtype=object)
+
+    # Por esto (o asegúrate de convertir después):
+    df_full_cur = pd.DataFrame(index=df_cur.index, columns=cols_requises)
+    df_full_cur = df_full_cur.astype(float, errors='ignore')
+
+    # Convertir age en jours négatifs (convention Home Credit)
+    if "age" in df_cur.columns:
+        df_cur = df_cur.copy()
+        df_cur["age"] = -(df_cur["age"] * 365)
+
+    # Remplir colonne par colonne en respectant le type
+    for col_json, col_preproc in MAPPING_REVERSO.items():
+        if col_json in df_cur.columns and col_preproc in df_full_cur.columns:
+            if col_preproc in COLS_CATEGORIES:
+                # Chaîne — laisser comme object pour l'OHE
+                df_full_cur[col_preproc] = df_cur[col_json].astype(str)
+            else:
+                # Numérique — convertir en float
+                df_full_cur[col_preproc] = pd.to_numeric(df_cur[col_json], errors="coerce")
+
+    # Colonnes numériques non mappées → NaN float (l'imputer les remplira)
+    for col in cols_requises:
+        if col not in COLS_CATEGORIES and col not in MAPPING_REVERSO.values():
+            df_full_cur[col] = pd.to_numeric(df_full_cur[col], errors="coerce")
+
+    # -- Transformation df_cur_ali --------------------------------------------
+    try:
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
+            X_cur_transforme = preprocessor.transform(df_full_cur)
+        df_cur_ali = pd.DataFrame(X_cur_transforme, columns=noms_features)
+        log.DEBUG_PARAMETER_VALUE("df_cur_ali shape", df_cur_ali.shape)
+    except Exception as e:
+        log.LEVEL_4_ERROR(NOM_FICHIER, f"Erreur transformation predictions : {str(e)}")
+        raise
+
+    # -- Transformation df_ref_ali (reference_data.csv → même espace) --------
+    # Le CSV est déjà dans l'espace du preprocesseur (noms colonnes identiques).
+    # On filtre les colonnes communes et on transforme directement.
+    try:
+        cols_ref_presentes = [c for c in cols_requises if c in df_ref.columns]
+        df_ref_pour_transform = pd.DataFrame(index=df_ref.index, columns=cols_requises, dtype=object)
+        for col in cols_requises:
+            if col in df_ref.columns:
+                if col in COLS_CATEGORIES:
+                    df_ref_pour_transform[col] = df_ref[col].astype(str)
+                else:
+                    df_ref_pour_transform[col] = pd.to_numeric(df_ref[col], errors="coerce")
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
+            X_ref_transforme = preprocessor.transform(df_ref_pour_transform)
+        df_ref_ali = pd.DataFrame(X_ref_transforme, columns=noms_features)
+        log.DEBUG_PARAMETER_VALUE("df_ref_ali shape", df_ref_ali.shape)
+    except Exception as e:
+        log.LEVEL_4_ERROR(NOM_FICHIER, f"Erreur transformation reference : {str(e)}")
+        raise
+
+    log.DEBUG_PARAMETER_VALUE("Colonnes alignees", len(noms_features))
+
     # ---- ETAPE 3: Analyse Evidently -----------------------------------------
     log.STEP(6, f"3. Génération du rapport ({args.format})")
     

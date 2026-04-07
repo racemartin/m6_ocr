@@ -108,6 +108,9 @@ MAPPING_COLONNES = {
     "type_pret"               : "name_contract_type",
 }
 
+
+
+
 # Mapping inverse : nom colonne preprocesseur -> nom feature originale
 MAPPING_INVERSE = {v: k for k, v in MAPPING_COLONNES.items()}
 
@@ -574,7 +577,38 @@ class OnnxScorerAdaptater(ICreditScorer):
         }
         return pd.DataFrame([ligne])
 
-    def _construire_dataframe(self, demande: DemandeCredit) -> pd.DataFrame:
+    def _construire_dataframe_V2(self, donnees):
+        # 1. Extraer datos (Pydantic v2/v1)
+        data_dict = donnees.model_dump() if hasattr(donnees, "model_dump") else donnees.dict()
+
+        # 2. Crear DataFrame con las 11 columnas del formulario
+        df = pd.DataFrame([data_dict])
+        df = df.rename(columns=MAPPING_COLONNES)
+
+        # 3. RELLENO SINTÉTICO (Para las 122 columnas faltantes)
+        # Obtenemos la lista de todas las columnas que espera el preprocesador
+        # Estas vienen de la propiedad .feature_names_in_ del objeto sklearn
+        try:
+            columnas_totales = self._preprocesseur.feature_names_in_
+
+            # Añadimos las columnas que faltan con valor por defecto
+            for col in columnas_totales:
+                if col not in df.columns:
+                    # Si es una columna de tipo objeto (categoría), usamos 'XNA' o 'Unaccompanied'
+                    # Si es numérica, usamos 0.0
+                    df[col] = 0.0  # El preprocesador suele manejar bien el 0.0 si hay un Imputer
+
+            # 4. Asegurar el orden exacto de las 133+ columnas
+            df_final = df[columnas_totales]
+
+        except AttributeError:
+            # Si el preprocesador no tiene feature_names_in_, usamos el orden del mapping
+            st.warning("Le préprocesseur n'a pas de métadonnées de colonnes, utilisation du mapping réduit.")
+            df_final = df[list(MAPPING_COLONNES.values())]
+
+        return df_final
+
+    def _construire_dataframe_V1(self, demande: DemandeCredit) -> pd.DataFrame:
         # 1. Creamos un diccionario base con todas las columnas en 0.0 (floats)
         datos = {col: 0.0 for col in self._columnas_originales}
 
@@ -595,7 +629,40 @@ class OnnxScorerAdaptater(ICreditScorer):
         # 4. Creamos el DataFrame a partir de una lista de un solo diccionario
         # Al hacerlo así, Pandas no genera el FutureWarning
         return pd.DataFrame([datos])
-    
+
+    def _construire_dataframe(self, demande: DemandeCredit) -> pd.DataFrame:
+        """
+        Método robusto: Inicializa todas las columnas esperadas y mapea
+        los datos del formulario a los nombres técnicos del modelo.
+        """
+        # 1. Inicialización con ceros (o valores neutros)
+        # self._columnas_originales debe contener las 133+ columnas del modelo
+        datos = {col: 0.0 for col in self._columnas_originales}
+
+        # 2. Mapeo explícito y transformación de unidades (Edad a días negativos)
+        # Usamos los nombres técnicos que el preprocessor espera
+        mapeo_real = {
+            "days_birth": float(-(demande.age * 365)),
+            "amt_income_total": float(demande.revenu),
+            "amt_credit": float(demande.montant_pret),
+            "duree_pret_mois": float(demande.duree_pret_mois),
+            "avg_dpd_per_delinquency": float(demande.jours_retard_moyen),
+            "delinquency_ratio": float(demande.taux_incidents),
+            "credit_utilization_ratio": float(demande.taux_utilisation_credit),
+            "num_open_accounts": float(demande.nb_comptes_ouverts),
+            # Manejo seguro de Enums o Strings
+            "name_housing_type": getattr(demande.type_residence, "value", demande.type_residence),
+            "name_type_suite": getattr(demande.objet_pret, "value", demande.objet_pret),
+            "name_contract_type": getattr(demande.type_pret, "value", demande.type_pret),
+        }
+
+        # 3. Inyectar los datos reales en la estructura completa
+        datos.update(mapeo_real)
+
+        # 4. Crear DataFrame garantizando el orden exacto de las columnas
+        # El orden es vital para que el preprocesador no confunda variables
+        return pd.DataFrame([datos])[self._columnas_originales]
+
     # -------------------------------------------------------------------------
     def _calculer_shap(self, X: np.ndarray) -> np.ndarray:
         """

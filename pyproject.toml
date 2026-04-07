@@ -20,10 +20,10 @@ dependencies = [
     "gunicorn>=21.2.0",          # Gestionnaire de serveurs pour le déploiement en production Linux
     "gradio>=6.5.1",             # Interface utilisateur rapide pour tester le modèle de scoring
     # --- Machine Learning & Analyse ---
-    "pandas>=2.3.3",             # Manipulation de DataFrames (données clients, historiques)
+    "pandas==2.2.2",             # Manipulation de DataFrames (données clients, historiques)
     "polars>=1.37.1",            # Traitement de données ultra-rapide (alternative performante à Pandas)
     "numpy>=2.2.2",              # Calcul numérique et gestion de tableaux
-    "scikit-learn>=1.3.2",       # Algorithmes de ML classiques et prétraitement
+    "scikit-learn==1.8.0",       # Algorithmes de ML classiques et prétraitement
     "lightgbm>=4.3.0",           # Framework de boosting rapide utilisant l'apprentissage par arbre
     "catboost>=1.2.8",           # Gradient Boosting optimisé pour variables catégorielles
     "xgboost>=2.1.4",            # Algorithme de boosting haute performance
@@ -33,7 +33,7 @@ dependencies = [
     # --- MLOps, Serving & Monitoring ---
     "mlflow>=2.8.1",             # Gestion du cycle de vie du ML (Suivi des expériences de scoring)
     "bentoml>=1.1.9",            # Packaging et service de modèles haute performance
-    "evidently>=0.4.11",         # Monitoring du modèle (Détection de Data Drift et dégradation)
+    "evidently==0.4.33",         # Monitoring du modèle (Détection de Data Drift et dégradation)
     # --- Base de données & Persistance ---
     "sqlalchemy>=2.0.23",        # ORM pour interagir avec PostgreSQL via des objets Python
     "psycopg2-binary>=2.9.9",    # Adaptateur PostgreSQL pour Python (requis par SQLAlchemy)
