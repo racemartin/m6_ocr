@@ -64,7 +64,7 @@ jobs:
           DB_PORT: 5433
           DB_NAME: test_db
           DATABASE_URL: postgresql://test_user:test_pass@localhost:5433/test_db
-        run: uv run pytest tests/test_03_database.py
+        run: uv run pytest tests/test_03_database.py --no-cov
           #run: |
             #uv run pytest tests/ -v \
             #--cov=src \

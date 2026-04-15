@@ -478,11 +478,11 @@ class TestDBFallback:
             assert pipeline.source == "csv"
             assert pipeline.df_raw is not None
 
-    def test_step7_register_db_est_non_bloquant_si_db_absente(
+    def test_step8_register_db_est_non_bloquant_si_db_absente(
         self, tmp_processed_dir, monkeypatch
     ):
         """
-        step7_register_db() ne doit pas faire planter le pipeline
+        step8_register_db() ne doit pas faire planter le pipeline
         si la DB est indisponible — l'enregistrement est non bloquant.
         """
         monkeypatch.chdir(tmp_processed_dir.parent)
@@ -491,4 +491,4 @@ class TestDBFallback:
 
         with patch("src.pipelines.phase3_model_training_mlflow.DB_AVAILABLE", False):
             # Ne doit pas lever d'exception
-            pipeline.step7_register_db()   # Doit logguer WARNING et continuer
+            pipeline.step8_register_db()   # Doit logguer WARNING et continuer
