@@ -112,7 +112,7 @@ models/*.pt
 *.pkl
 *.h5
 *.pt
-*.onnx
+# *.onnx
 *.tflite
 *.bin
 *.pyd

@@ -21,6 +21,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copie de l'intégralité du code source dans le conteneur
 COPY . .
 
+
 # Configuration du chemin Python pour que les modules internes soient trouvés
 ENV PYTHONPATH=/app
 
