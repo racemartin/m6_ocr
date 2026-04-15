@@ -6,9 +6,8 @@ WORKDIR /app
 
 # ÉTAPE DE DÉBOGAGE : Confirmation du début de l'installation des outils de base
 RUN echo "V1 Début de l'installation des outils de base (setuptools)..." && \
-    pip install --no-cache-dir setuptools && \
-    # Vérification immédiate de la présence de pkg_resources
-    python -c "import pkg_resources; print('✅ pkg_resources est prêt !')"
+    pip install --no-cache-dir "setuptools<71.0.0" && \
+    python -c "import pkg_resources; print('✅ pkg_resources est enfin prêt !')"
 
 # Copie du fichier des dépendances
 COPY requirements.txt .
