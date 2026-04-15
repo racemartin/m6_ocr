@@ -51,5 +51,5 @@ jobs:
           git commit -m "Deploy API m7_ocr - ${{ github.sha }}"
 
           # ⚠️ Cambia 'mombasstic/proyecto8-app' por tu Space real
-          git remote add hf https://mombasstic:$HF_TOKEN@huggingface.co/spaces/mombasstic/pret_a_depenser
+          git remote add hf https://mombasstic:${HF_TOKEN}@huggingface.co/spaces/mombasstic/pret_a_depenser
           git push --force hf main
