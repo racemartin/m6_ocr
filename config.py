@@ -10,7 +10,7 @@ from pathlib import Path  # Chemins indépendants du système d'exploitation
 # --- Pydantic settings (lecture .env et variables d'environnement) -----------
 # --- IMPORTANTE: Configuración de Pydantic para eliminar el Warning ---
 from pydantic import ConfigDict
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # =============================================================================
 # CLASSE DE CONFIGURATION PRINCIPALE
@@ -34,12 +34,7 @@ class Paramètres(BaseSettings):
         0.35 = si proba_défaut ≥ 0.35 → crédit refusé.
     """
 
-    # Esto le dice a Pydantic que ignore el prefijo "model_" como protegido
-    # Esta es la forma oficial y única necesaria en Pydantic V2:
-    model_config = ConfigDict(protected_namespaces=('settings_',))
 
-
-    model_config = {'protected_namespaces': ('settings_',)}
 
     # -- Sélection du backend de scoring --------------------------------------
     model_backend: str = "onnx"  # "onnx" | "mlflow" — voir dependencies.py
@@ -76,6 +71,10 @@ class Paramètres(BaseSettings):
         "models:/credit_scorer/Production"       # URI du modèle enregistré
     )
 
+    # Esto le dice a Pydantic que ignore el prefijo "model_" como protegido
+    # Esta es la forma oficial y única necesaria en Pydantic V2:
+    # model_config = ConfigDict(protected_namespaces=('settings_',))
+    # model_config = {'protected_namespaces': ('settings_',)}
     # -- Configuration de l'API FastAPI ---------------------------------------
     titre_api:       str = "API Scoring Crédit — Prêt à Dépenser"
     version_api:     str = "2.0.0"
@@ -87,13 +86,16 @@ class Paramètres(BaseSettings):
     # -- Logging ---------------------------------------------------------------
     niveau_log: str = "INFO"  # DEBUG | INFO | WARNING | ERROR
 
-    # -- Pydantic : lecture du fichier .env -----------------------------------
-    model_config = {
-        "env_file"          : ".env",
-        "env_file_encoding" : "utf-8",
-        "case_sensitive"    : False,   # MODEL_BACKEND == model_backend
-        "extra"             : "ignore"
-    }
+
+
+
+    model_config = SettingsConfigDict(
+        protected_namespaces=('settings_',), # 🛡️ Esto quita el Warning
+        env_file=".env",                     # 📄 Lee tu archivo .env
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
 
 
 # =============================================================================
