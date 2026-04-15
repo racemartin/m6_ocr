@@ -94,9 +94,11 @@ reports/monitoring/
 # =============================================================================
 # Principe: Les données ne doivent JAMAIS être versionnées
 # Utiliser DVC, S3, ou autre solution de data versioning
-data/
-data/**/*
+#data/
+#data/**/*
 !data/**/.gitkeep
+data/raw
+data/processed
 
 notebooks/*.parquet
 

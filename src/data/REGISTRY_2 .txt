@@ -1,0 +1,647 @@
+
+  ⚠️  Colonnes inconnues dans le DF (61) :
+     ['split', 'bureau_credit_count', 'bureau_amt_credit_sum_mean', 'bureau_amt_credit_sum_total', 'bureau_days_credit_max', 'bureau_days_credit_min', 'bureau_amt_credit_sum_debt_mean', 'bureau_amt_credit_sum_debt_total', 'bureau_active_credit_count', 'bureau_closed_credit_count']
+  ℹ️  Features du registre absentes du DF (77) :
+     ['credit_active', 'credit_currency', 'days_credit', 'credit_day_overdue', 'days_credit_enddate', 'days_enddate_fact', 'amt_credit_max_overdue', 'cnt_credit_prolong', 'amt_credit_sum', 'amt_credit_sum_debt']
+
+
+  ⚠️  Colonnes inconnues dans le DF (61) :
+     ['split', 'bureau_credit_count', 'bureau_amt_credit_sum_mean', 'bureau_amt_credit_sum_total', 'bureau_days_credit_max', 'bureau_days_credit_min', 'bureau_amt_credit_sum_debt_mean', 'bureau_amt_credit_sum_debt_total', 'bureau_active_credit_count', 'bureau_closed_credit_count']
+  ℹ️  Features du registre absentes du DF (77) :
+     ['credit_active', 'credit_currency', 'days_credit', 'credit_day_overdue', 'days_credit_enddate', 'days_enddate_fact', 'amt_credit_max_overdue', 'cnt_credit_prolong', 'amt_credit_sum', 'amt_credit_sum_debt']
+
+
+
+
+---
+
+## ✅ El schema.py está correcto — recuento completo
+
+**238 `build_attribute_spec` totales**, distribuidos así:
+
+| source_table | Tabla real CSV | Cols esperadas | Cols en schema | Estado |
+|---|---|---|---|---|
+| `application` | application_train | 122 | 122 | ✅ |
+| `bureau` | bureau | 17 | 17 | ✅ |
+| `bureau_balance` | bureau_balance | 3 | 3 | ✅ |
+| `previous_application` | previous_application | 37 | 37 | ✅ |
+| `pos_cash` | POS_CASH_balance | 8 | 8 | ✅ |
+| `credit_card` | credit_card_balance | 23 | 23 | ✅ |
+| `installments` | installments_payments | 8 | 8 | ✅ |
+| **Subtotal RAW** | | **218** | **218** | ✅ |
+| `bureau_agg` | vista agregada | — | 6 | ✅ | << 13
+| `previous_agg` | vista agregada | — | 5 | ✅ |
+| `pos_cash_agg` | vista agregada | — | 2 | ✅ |
+| `cc_balance_agg` | vista agregada | — | 3 | ✅ |
+| `installments_agg` | vista agregada | — | 3 | ✅ |
+| **Subtotal AGG** | | | **19** | ✅ |
+| `application` (TARGET) | SK_ID_CURR + TARGET | — | 1 | ✅ |
+| **TOTAL** | | | **238** | ✅ |
+
+**Conclusiones:**
+- Ninguna columna faltante, ningún `source_table` incorrecto
+- La diferencia de +1 es `SK_ID_CURR / TARGET` registrado con `role=ColumnRole.TARGET`
+- Las 19 vistas agregadas son features calculadas en Phase 1.2, no columnas raw — correcto que tengan `source_table` distinto
+- **No hay nada que añadir ni corregir**
+
+
+# ##############################################################################
+# REGISTRE - DÉFINITION DES ATTRIBUTS (HOME CREDIT / APPLICATION)
+# ##############################################################################
+
+
+REGISTRY_2 = FeatureRegistry(
+    attributes=[
+    # IDENTIFIANTS
+        build_attribute_spec(
+            "SK_ID_CURR",
+            "ID dossier",
+            "sk_id_curr",
+            col_type=ColumnType.IDENTIFIER,
+            role=ColumnRole.IDENTIFIER,
+        ),
+    # TARGET
+        build_attribute_spec(
+            "TARGET",
+            "Défaut remboursement",
+            "target",
+            col_type=ColumnType.BINARY,
+            role=ColumnRole.TARGET,
+        ),
+    # CATÉGORIELS OHE
+        build_attribute_spec(
+            "NAME_CONTRACT_TYPE",
+            "Type contrat",
+            "contract_type",
+            col_type=ColumnType.CATEGORICAL,
+            encoding=EncodingType.ONE_HOT,
+            valeurs_possibles={
+                "Cash loans"     : "cash",
+                "Revolving loans": "revolving",
+            },
+        ),
+        build_attribute_spec(
+            "CODE_GENDER",
+            "Sexe",
+            "gender",
+            col_type=ColumnType.CATEGORICAL,
+            encoding=EncodingType.ONE_HOT,
+            valeurs_possibles={
+                "M"  : "male",
+                "F"  : "female",
+                "XNA": "unknown",
+            },
+        ),
+        build_attribute_spec(
+            "NAME_INCOME_TYPE",
+            "Type revenu",
+            "income_type",
+            col_type=ColumnType.CATEGORICAL,
+            encoding=EncodingType.ONE_HOT,
+            valeurs_possibles={
+                "Working"             : "working",
+                "State servant"       : "state_servant",
+                "Commercial associate": "commercial",
+                "Pensioner"           : "pensioner",
+                "Unemployed"          : "unemployed",
+                "Student"             : "student",
+                "Businessman"         : "businessman",
+                "Maternity leave"     : "maternity",
+            },
+        ),
+        build_attribute_spec(
+            "NAME_EDUCATION_TYPE",
+            "Éducation",
+            "education_type",
+            col_type=ColumnType.CATEGORICAL,
+            encoding=EncodingType.ORDINAL,
+            valeurs_possibles={
+                "Lower secondary"                 : "1_lower_secondary",
+                "Secondary / secondary special"   : "2_secondary",
+                "Incomplete higher"               : "3_incomplete_higher",
+                "Higher education"                : "4_higher",
+                "Academic degree"                 : "5_academic",
+            },
+        ),
+        build_attribute_spec(
+            "NAME_FAMILY_STATUS",
+            "Statut familial",
+            "family_status",
+            col_type=ColumnType.CATEGORICAL,
+            encoding=EncodingType.ONE_HOT,
+            valeurs_possibles={
+                "Single / not married": "single",
+                "Married"             : "married",
+                "Civil marriage"      : "civil",
+                "Widow"               : "widow",
+                "Separated"           : "separated",
+            },
+        ),
+        build_attribute_spec(
+            "NAME_HOUSING_TYPE",
+            "Type logement",
+            "housing_type",
+            col_type=ColumnType.CATEGORICAL,
+            encoding=EncodingType.ONE_HOT,
+            valeurs_possibles={
+                "House / apartment"    : "house_apartment",
+                "Rented apartment"     : "rented",
+                "With parents"         : "with_parents",
+                "Municipal apartment"  : "municipal",
+                "Office apartment"     : "office",
+                "Co-op apartment"      : "coop",
+            },
+        ),
+        build_attribute_spec(
+            "WEEKDAY_APPR_PROCESS_START",
+            "Jour semaine",
+            "weekday_appr",
+            col_type=ColumnType.CATEGORICAL,
+            encoding=EncodingType.ONE_HOT,
+            valeurs_possibles={
+                "MONDAY"   : "mon",
+                "TUESDAY"  : "tue",
+                "WEDNESDAY": "wed",
+                "THURSDAY" : "thu",
+                "FRIDAY"   : "fri",
+                "SATURDAY" : "sat",
+                "SUNDAY"   : "sun",
+            },
+        ),
+        build_attribute_spec(
+            "HOUSETYPE_MODE",
+            "Type maison",
+            "housetype_mode",
+            col_type=ColumnType.CATEGORICAL,
+            encoding=EncodingType.ONE_HOT,
+            valeurs_possibles={
+                "block of flats"   : "block_of_flats",
+                "specific housing" : "specific_housing",
+                "terraced house"   : "terraced_house",
+            },
+        ),
+        build_attribute_spec(
+            "WALLSMATERIAL_MODE",
+            "Matériau murs",
+            "wallsmaterial_mode",
+            col_type=ColumnType.CATEGORICAL,
+            encoding=EncodingType.ONE_HOT,
+            valeurs_possibles={
+                "Stone, brick": "stone_brick",
+                "Block"       : "block",
+                "Panel"       : "panel",
+                "Mixed"       : "mixed",
+                "Wooden"      : "wooden",
+                "Monolithic"  : "monolithic",
+                "Others"      : "others",
+            },
+        ),
+        build_attribute_spec(
+            "FONDKAPREMONT_MODE",
+            "Fonds rénovation",
+            "fondkapremont_mode",
+            col_type=ColumnType.CATEGORICAL,
+            encoding=EncodingType.ONE_HOT,
+        ),
+    # CATÉGORIELS TARGET ENC
+        build_attribute_spec(
+            "OCCUPATION_TYPE",
+            "Occupation",
+            "occupation_type",
+            col_type=ColumnType.CATEGORICAL,
+            encoding=EncodingType.TARGET_ENC,
+        ),
+        build_attribute_spec(
+            "ORGANIZATION_TYPE",
+            "Organisation",
+            "organization_type",
+            col_type=ColumnType.CATEGORICAL,
+            encoding=EncodingType.TARGET_ENC,
+        ),
+        build_attribute_spec(
+            "NAME_TYPE_SUITE",
+            "Accompagnement",
+            "type_suite",
+            col_type=ColumnType.CATEGORICAL,
+            encoding=EncodingType.TARGET_ENC,
+        ),
+    # BINAIRES Y/N
+        build_attribute_spec(
+            "FLAG_OWN_CAR",
+            "Possède voiture",
+            "flag_own_car",
+            col_type=ColumnType.BINARY,
+            encoding=EncodingType.BINARY_ENC,
+            valeurs_possibles={
+                "Y": "1",
+                "N": "0",
+            },
+        ),
+        build_attribute_spec(
+            "FLAG_OWN_REALTY",
+            "Possède immobilier",
+            "flag_own_realty",
+            col_type=ColumnType.BINARY,
+            encoding=EncodingType.BINARY_ENC,
+            valeurs_possibles={
+                "Y": "1",
+                "N": "0",
+            },
+        ),
+        build_attribute_spec(
+            "EMERGENCYSTATE_MODE",
+            "État urgence",
+            "emergencystate_mode",
+            col_type=ColumnType.BINARY,
+            encoding=EncodingType.BINARY_ENC,
+            valeurs_possibles={
+                "Yes": "1",
+                "No" : "0",
+            },
+        ),
+    # NUMÉRIQUES LOG
+    """
+        build_attribute_spec(
+            "AMT_INCOME_TOTAL",
+            "Revenu annuel",
+            "amt_income_total",
+            transform=TransformType.LOG,
+        ),
+        build_attribute_spec(
+            "AMT_CREDIT",
+            "Montant crédit",
+            "amt_credit",
+            transform=TransformType.LOG,
+        ),
+        build_attribute_spec(
+            "AMT_ANNUITY",
+            "Annuité mensuelle",
+            "amt_annuity",
+            transform=TransformType.LOG,
+        ),
+        build_attribute_spec(
+            "AMT_GOODS_PRICE",
+            "Prix bien financé",
+            "amt_goods_price",
+            transform=TransformType.LOG,
+        ),
+    """
+    # NUMÉRIQUES STANDARD
+    """
+        build_attribute_spec(
+            "DAYS_BIRTH",
+            "Âge jours",
+            "days_birth",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "DAYS_EMPLOYED",
+            "Ancienneté empl",
+            "days_employed",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "DAYS_REGISTRATION",
+            "Jours enreg.",
+            "days_registration",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "DAYS_ID_PUBLISH",
+            "Jours pièce ID",
+            "days_id_publish",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "DAYS_LAST_PHONE_CHANGE",
+            "Jours tél chgé",
+            "days_last_phone_change",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "OWN_CAR_AGE",
+            "Âge véhicule",
+            "own_car_age",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "EXT_SOURCE_1",
+            "Score ext.1",
+            "ext_source_1",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "EXT_SOURCE_2",
+            "Score ext.2",
+            "ext_source_2",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "EXT_SOURCE_3",
+            "Score ext.3",
+            "ext_source_3",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "CNT_CHILDREN",
+            "Nb enfants",
+            "cnt_children",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "CNT_FAM_MEMBERS",
+            "Taille foyer",
+            "cnt_fam_members",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "HOUR_APPR_PROCESS_START",
+            "Heure dépôt",
+            "hour_appr_process_start",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "REGION_RATING_CLIENT",
+            "Rating région",
+            "region_rating_client",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "REGION_RATING_CLIENT_W_CITY",
+            "Rating rég+ville",
+            "region_rating_client_w_city",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "TOTALAREA_MODE",
+            "Surface totale",
+            "totalarea_mode",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "LIVINGAREA_AVG",
+            "Surface habit.",
+            "livingarea_avg",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "FLOORSMAX_AVG",
+            "Nb étages max",
+            "floorsmax_avg",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "YEARS_BEGINEXPLUATATION_AVG",
+            "Année exploit.",
+            "years_beginexpluatation_avg",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "YEARS_BUILD_AVG",
+            "Année constr.",
+            "years_build_avg",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "AMT_REQ_CREDIT_BUREAU_HOUR",
+            "Consult/h",
+            "amt_req_bureau_hour",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "AMT_REQ_CREDIT_BUREAU_DAY",
+            "Consult/j",
+            "amt_req_bureau_day",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "AMT_REQ_CREDIT_BUREAU_WEEK",
+            "Consult/sem",
+            "amt_req_bureau_week",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "AMT_REQ_CREDIT_BUREAU_MON",
+            "Consult/mois",
+            "amt_req_bureau_mon",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "AMT_REQ_CREDIT_BUREAU_QRT",
+            "Consult/trim",
+            "amt_req_bureau_qrt",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "AMT_REQ_CREDIT_BUREAU_YEAR",
+            "Consult/an",
+            "amt_req_bureau_year",
+            transform=TransformType.STANDARD,
+        ),
+    """
+        
+
+    # FEATURES ENGINEERED
+        build_attribute_spec(
+            "FE_CREDIT_INCOME_RATIO",
+            "Ratio crédit/revenu",
+            "fe_credit_income_ratio",
+            source_table="engineered",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "FE_ANNUITY_INCOME_RATIO",
+            "Ratio annuité/revenu",
+            "fe_annuity_income_ratio",
+            source_table="engineered",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "FE_DAYS_EMPLOYED_RATIO",
+            "Ratio ancienneté/âge",
+            "fe_days_employed_ratio",
+            source_table="engineered",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "FE_AGE_YEARS",
+            "Âge (années)",
+            "fe_age_years",
+            source_table="engineered",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "FE_EMPLOYED_ANOMALY",
+            "Anomalie emploi",
+            "fe_employed_anomaly",
+            source_table="engineered",
+            col_type=ColumnType.BINARY,
+        ),
+        build_attribute_spec(
+            "FE_EXT_SOURCES_MEAN",
+            "Moy. scores ext.",
+            "fe_ext_sources_mean",
+            source_table="engineered",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "FE_EXT_SOURCES_MIN",
+            "Min scores ext.",
+            "fe_ext_sources_min",
+            source_table="engineered",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "FE_INCOME_PER_PERSON",
+            "Revenu/personne",
+            "fe_income_per_person",
+            source_table="engineered",
+            transform=TransformType.LOG,
+        ),
+        build_attribute_spec(
+            "FE_PAYMENT_RATE",
+            "Taux remboursement",
+            "fe_payment_rate",
+            source_table="engineered",
+            transform=TransformType.STANDARD,
+        ),
+    # AGRÉGATS BUREAU
+        build_attribute_spec(
+            "BUREAU_CREDIT_COUNT",
+            "Nb crédits bureau",
+            "bureau_credit_count",
+            source_table="bureau_agg",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "BUREAU_AMT_CREDIT_SUM_MEAN",
+            "Montant moy bureau",
+            "bureau_amt_credit_sum_mean",
+            source_table="bureau_agg",
+            transform=TransformType.LOG,
+        ),
+        build_attribute_spec(
+            "BUREAU_DAYS_CREDIT_MAX",
+            "Crédit récent",
+            "bureau_days_credit_max",
+            source_table="bureau_agg",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "BUREAU_ACTIVE_CREDIT_COUNT",
+            "Crédits actifs",
+            "bureau_active_credit_count",
+            source_table="bureau_agg",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "BUREAU_AMT_CREDIT_SUM_DEBT_MEAN",
+            "Dette moy. bureau",
+            "bureau_amt_credit_sum_debt_mean",
+            source_table="bureau_agg",
+            transform=TransformType.LOG,
+        ),
+        build_attribute_spec(
+            "BUREAU_OVERDUE_COUNT",
+            "Nb retards bureau",
+            "bureau_overdue_count",
+            source_table="bureau_agg",
+            transform=TransformType.STANDARD,
+        ),
+    # AGRÉGATS PREVIOUS
+        build_attribute_spec(
+            "PREV_APP_COUNT",
+            "Nb demandes",
+            "prev_app_count",
+            source_table="previous_agg",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "PREV_APPROVED_COUNT",
+            "Nb approuvées",
+            "prev_approved_count",
+            source_table="previous_agg",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "PREV_REFUSED_COUNT",
+            "Nb refusées",
+            "prev_refused_count",
+            source_table="previous_agg",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "PREV_AMT_CREDIT_MEAN",
+            "Montant précéd.",
+            "prev_amt_credit_mean",
+            source_table="previous_agg",
+            transform=TransformType.LOG,
+        ),
+        build_attribute_spec(
+            "PREV_DAYS_DECISION_MAX",
+            "Décision récente",
+            "prev_days_decision_max",
+            source_table="previous_agg",
+            transform=TransformType.STANDARD,
+        ),
+    # AGRÉGATS INSTALLMENTS
+        build_attribute_spec(
+            "INSTALL_PAYMENT_DELAY_MEAN",
+            "Retard paiement",
+            "install_payment_delay_mean",
+            source_table="installments_agg",
+            transform=TransformType.ROBUST,
+        ),
+        build_attribute_spec(
+            "INSTALL_PAYMENT_RATIO_MEAN",
+            "Ratio paiement",
+            "install_payment_ratio_mean",
+            source_table="installments_agg",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "INSTALL_DPD_MAX",
+            "Retard max",
+            "install_dpd_max",
+            source_table="installments_agg",
+            transform=TransformType.ROBUST,
+        ),
+    # AGRÉGATS POS CASH
+        build_attribute_spec(
+            "POS_MONTHS_BALANCE_MEAN",
+            "Solde POS moy.",
+            "pos_months_balance_mean",
+            source_table="pos_cash_agg",
+            transform=TransformType.STANDARD,
+        ),
+        build_attribute_spec(
+            "POS_SK_DPD_MAX",
+            "Retard max POS",
+            "pos_sk_dpd_max",
+            source_table="pos_cash_agg",
+            transform=TransformType.ROBUST,
+        ),
+    # AGRÉGATS CREDIT CARD
+        build_attribute_spec(
+            "CC_AMT_BALANCE_MEAN",
+            "Solde CC moy.",
+            "cc_amt_balance_mean",
+            source_table="cc_balance_agg",
+            transform=TransformType.LOG,
+        ),
+        build_attribute_spec(
+            "CC_SK_DPD_MAX",
+            "Retard max CC",
+            "cc_sk_dpd_max",
+            source_table="cc_balance_agg",
+            transform=TransformType.ROBUST,
+        ),
+        build_attribute_spec(
+            "CC_AMT_DRAWINGS_CURRENT_SUM",
+            "Total retraits CC",
+            "cc_amt_drawings_current_sum",
+            source_table="cc_balance_agg",
+            transform=TransformType.LOG,
+        ),
+    ]
+)
