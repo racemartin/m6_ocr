@@ -14,9 +14,10 @@ COPY model_artifact/  ./model_artifact/
 COPY monitoring/      ./monitoring/
 COPY app.py           ./app.py
 
-EXPOSE 7860
+EXPOSE 8501
 
 ENV MODEL_BACKEND=onnx
 ENV API_URL=http://localhost:8001
 
 CMD ["python", "app.py"]
+CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
