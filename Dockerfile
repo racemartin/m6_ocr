@@ -1,36 +1,39 @@
-# Utilisation d'une image Python légère basée sur Debian
+# 1. Siempre empezar con la imagen base
 FROM python:3.12-slim
 
-# Définition du répertoire de travail dans le conteneur
+# 2. Cambiar a root para instalar librerías del sistema
+USER root
+
+# 3. Instalar dependencias necesarias (libgomp1 para LightGBM)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 4. Configurar el directorio de trabajo
 WORKDIR /app
 
-# ÉTAPE DE DÉBOGAGE : Confirmation du début de l'installation des outils de base
-RUN echo "V1 Début de l'installation des outils de base (setuptools)..." && \
-    pip install --no-cache-dir "setuptools<71.0.0" && \
-    python -c "import pkg_resources; print('✅ pkg_resources est enfin prêt !')"
+# 5. Instalación de herramientas básicas
+RUN pip install --no-cache-dir "setuptools<71.0.0"
 
-# Copie du fichier des dépendances
+# 6. Copiar e instalar dependencias de Python
 COPY requirements.txt .
-
-# ÉTAPE DE DÉBOGAGE : Inspection du contenu avant l'installation massive
-RUN echo "Contenu du répertoire /app avant l'installation des dépendances :" && ls -R
-
-# Installation des bibliothèques listées dans requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copie de l'intégralité du code source dans le conteneur
+# 7. Copiar el resto del código
 COPY . .
 
+# 8. Permisos y variables de entorno
 RUN chmod -R 777 /app/model_artifact
-    
-# Configuration du chemin Python pour que les modules internes soient trouvés
 ENV PYTHONPATH=/app
+ENV PORT=7860
 
-# ÉTAPE DE DÉBOGAGE : Vérification de la variable d'environnement
-RUN echo "Le PYTHONPATH configuré est : $PYTHONPATH"
+# 9. Volver al usuario por defecto (Hugging Face usa el UID 1000)
+# Es mejor no forzar "USER user" a menos que lo hayas creado, 
+# pero dejarlo como root suele funcionar en Spaces si no hay restricciones.
+# Si falla por permisos, borra la línea de abajo.
+# USER 1000 
 
-# Exposition du port utilisé par l'application
 EXPOSE 7860
 
-# Commande de lancement de l'application
+# 10. Comando de ejecución
 CMD ["python", "app.py"]

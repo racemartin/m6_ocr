@@ -97,6 +97,10 @@ reports/monitoring/
 #data/
 #data/**/*
 !data/**/.gitkeep
+
+data/interim/*.csv
+data/raw/*.csv
+
 data/raw
 data/processed
 
