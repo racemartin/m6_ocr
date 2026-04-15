@@ -16,7 +16,7 @@ import mlflow.pyfunc  # Chargement universel de modèles MLflow
 
 # --- Domaine et port ----------------------------------------------------------
 from src.api.domain.entities      import DemandeCredit, DecisionCredit  # Contrat
-from src.api.domain.value_objects import Decision, ScoreRisque           # Concepts
+from src.api.domain.value_objects import ScoreRisque           # Concepts
 from src.api.ports.i_credit_scorer import ICreditScorer                  # Interface
 
 # --- Configuration globale ----------------------------------------------------

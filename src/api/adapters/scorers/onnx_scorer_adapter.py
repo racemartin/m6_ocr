@@ -38,7 +38,6 @@
 import json                                           # Lecture metadonnees
 import logging                                        # Journalisation
 import time                                           # Mesure latence
-from   pathlib import Path                            # Chemins multi-OS
 from   typing  import Dict, List, Optional            # Annotations
 
 # --- Bibliotheques tierces : donnees -----------------------------------------
@@ -55,7 +54,6 @@ import shap                                           # Explicabilite SHAP
 # --- Domaine -----------------------------------------------------------------
 from src.api.domain.entities      import DemandeCredit, DecisionCredit
 from src.api.domain.value_objects import (
-    Decision,
     ScoreRisque,
     ExplicationShap,
 )
@@ -64,14 +62,13 @@ from src.api.ports.i_credit_scorer import ICreditScorer
 # --- Configuration -----------------------------------------------------------
 from config import parametres, DOSSIER_ARTEFACT
 import warnings
-
-# Journalisation du module
-journalapp = logging.getLogger(__name__)
-    
 import os
 import inspect
 from src.tools.rafael.log_tool import LogTool
-log = LogTool(origin="adapter")
+
+# Journalisation du module
+journalapp  = logging.getLogger(__name__)
+log         = LogTool(origin="adapter")
 NOM_FICHIER = os.path.basename(__file__)
 
 # Limpiar handlers duplicados
@@ -536,7 +533,7 @@ class OnnxScorerAdaptater(ICreditScorer):
         log.FINISH_CALL_MANAGER_FUNCTION(self.__class__.__name__, inspect.currentframe().f_code.co_name , "FINISH")
 
         return DecisionCredit(
-            id_demande         = demande.id_demande,
+            id_demande         = demande.id,
             score              = score,
             decision           = decision,
             latence_ms         = round(latence_ms, 2),
@@ -603,7 +600,12 @@ class OnnxScorerAdaptater(ICreditScorer):
 
         except AttributeError:
             # Si el preprocesador no tiene feature_names_in_, usamos el orden del mapping
-            st.warning("Le préprocesseur n'a pas de métadonnées de colonnes, utilisation du mapping réduit.")
+
+            log.LEVEL_5_WARNING(
+                "ONNXAdapter",
+                "Le préprocesseur n'a pas de métadonnées de colonnes, utilisation du mapping réduit."
+            )
+            journalapp.warning("Le préprocesseur n'a pas de métadonnées de colonnes, utilisation du mapping réduit.")
             df_final = df[list(MAPPING_COLONNES.values())]
 
         return df_final
@@ -630,7 +632,7 @@ class OnnxScorerAdaptater(ICreditScorer):
         # Al hacerlo así, Pandas no genera el FutureWarning
         return pd.DataFrame([datos])
 
-    def _construire_dataframe(self, demande: DemandeCredit) -> pd.DataFrame:
+    def _construire_dataframe_V3(self, demande: DemandeCredit) -> pd.DataFrame:
         """
         Método robusto: Inicializa todas las columnas esperadas y mapea
         los datos del formulario a los nombres técnicos del modelo.
@@ -661,6 +663,44 @@ class OnnxScorerAdaptater(ICreditScorer):
 
         # 4. Crear DataFrame garantizando el orden exacto de las columnas
         # El orden es vital para que el preprocesador no confunda variables
+        return pd.DataFrame([datos])[self._columnas_originales]
+
+    def _construire_dataframe(self, demande: DemandeCredit) -> pd.DataFrame:
+        # 1. Inicializar todas las columnas que el modelo espera en 0.0
+        # self._columnas_originales debe venir de self._preprocesseur.feature_names_in_
+        datos = {col: 0.0 for col in self._columnas_originales}
+
+        # 2. Mapeo Directo (Numéricas con sus transformaciones prefijadas)
+        mapeo = {
+            "standard__ext_source_1": demande.ext_source_1,
+            "standard__ext_source_2": demande.ext_source_2,
+            "standard__ext_source_3": demande.ext_source_3,
+            "standard__install_payment_ratio_mean": demande.paymnt_ratio_mean,
+            "standard__days_birth": float(-(demande.age * 365)),
+            "log__cc_amt_drawings_current_mean": demande.cc_drawings_mean,
+            "robust__install_payment_delay_mean": demande.paymnt_delay_mean,
+            "standard__pos_months_balance_mean": demande.pos_months_mean,
+            "log__amt_goods_price": demande.goods_price,
+            "log__bureau_amt_credit_sum_total": demande.bureau_credit_total,
+            "robust__install_dpd_max": demande.max_dpd,
+            "log__amt_credit": demande.amt_credit,
+            "log__amt_annuity": demande.amt_annuity,
+            "log__cc_amt_balance_mean": demande.cc_balance_mean,
+            "standard__days_employed": float(-(demande.years_employed * 365)),
+            "standard__days_last_phone_change": demande.phone_change_days,
+            "standard__region_rating_client": float(demande.region_rating),
+            "log__bureau_amt_credit_sum_debt_mean": demande.bureau_debt_mean,
+        }
+        datos.update(mapeo)
+
+        # 3. Lógica One-Hot Encoding (OHE) manual
+        if demande.education_type == "Higher education":
+            datos["ohe__name_education_type_higher_education"] = 1.0
+
+        if demande.code_gender == "F":
+            datos["ohe__code_gender_f"] = 1.0
+
+        # 4. Crear DF respetando el orden exacto de entrenamiento
         return pd.DataFrame([datos])[self._columnas_originales]
 
     # -------------------------------------------------------------------------
@@ -761,20 +801,29 @@ class OnnxScorerAdaptater(ICreditScorer):
             # -> ignoree proprement
 
         # -- Valeurs originales du client pour chaque feature ----------------
-        valeurs_client = {
-            "age"                     : demande.age,
-            "revenu"                  : demande.revenu,
-            "montant_pret"            : demande.montant_pret,
-            "duree_pret_mois"              : demande.duree_pret_mois,
-            "jours_retard_moyen"      : demande.jours_retard_moyen,
-            "taux_incidents"          : demande.taux_incidents,
-            "taux_utilisation_credit" : demande.taux_utilisation_credit,
-            "nb_comptes_ouverts"      : demande.nb_comptes_ouverts,
-            "type_residence"          : demande.type_residence,
-            "objet_pret"              : demande.objet_pret,
-            "type_pret"               : demande.type_pret,
-        }
 
+        valeurs_client = {
+            "ext_source_1": demande.ext_source_1,
+            "ext_source_2": demande.ext_source_2,
+            "ext_source_3": demande.ext_source_3,
+            "paymnt_ratio_mean": demande.paymnt_ratio_mean,
+            "age": demande.age,
+            "cc_drawings_mean": demande.cc_drawings_mean,
+            "paymnt_delay_mean": demande.paymnt_delay_mean,
+            "pos_months_mean": demande.pos_months_mean,
+            "goods_price": demande.goods_price,
+            "education_type": demande.education_type,
+            "code_gender": demande.code_gender,
+            "bureau_credit_total": demande.bureau_credit_total,
+            "max_dpd": demande.max_dpd,
+            "amt_credit": demande.amt_credit,
+            "amt_annuity": demande.amt_annuity,
+            "cc_balance_mean": demande.cc_balance_mean,
+            "years_employed": demande.years_employed,
+            "phone_change_days": demande.phone_change_days,
+            "region_rating": demande.region_rating,
+            "bureau_debt_mean": demande.bureau_debt_mean
+        }
         # -- Construction des ExplicationShap --------------------------------
         explications = []
         for nom_orig, impact in impacts.items():

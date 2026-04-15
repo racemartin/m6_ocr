@@ -14,17 +14,15 @@ from src.api.domain.entities import DemandeCredit, DecisionCredit  # Agrégats
 # --- Ports (interfaces abstraites) --------------------------------------------
 from src.api.ports.i_credit_scorer     import ICreditScorer            # Modèle
 from src.api.ports.i_prediction_logger import IJournaliseurPredictions  # Logging
-
-# --- Configuration globale ----------------------------------------------------
-from config import parametres  # Seuil de décision et autres réglages
-
-# Configuration du logger applicatif pour ce module
-journalapp = logging.getLogger(__name__)
-
 import os
 import inspect
 from src.tools.rafael.log_tool import LogTool
-log = LogTool(origin="UseCase")
+
+# --- Configuration globale ----------------------------------------------------
+
+# Configuration du logger applicatif pour ce module
+journalapp = logging.getLogger(__name__)
+log        = LogTool(origin="UseCase")
 
 def get_filename(self) -> str:
     """Devuelve el nombre del archivo actual con su extensión."""
@@ -106,29 +104,32 @@ class EvaluerDemandeCreditUseCase:
                 "Vérifiez que le modèle ONNX a bien été chargé au démarrage."
             )
 
-        log.DEBUG_PARAMETER_VALUE("Évaluation de la demande" , demande.id_demande)
-        
-        log.STEP(2, "Inference" , "ONNX ou MLflow selon l'environnement")
+        log.DEBUG_PARAMETER_VALUE("Évaluation de la demande", demande.id) # 'id' car défini dans entities.py
+        log.STEP(2, "Inference", "ONNX ou MLflow selon l'environnement")
 
-        # -- Inférence via le port (ONNX ou MLflow selon l'environnement) -----
-        decision = self._scoreur.predire(demande)
+        # -- Inférence via le port (ONNX ou MLflow) -----
+        # Cette méthode retourne un objet 'DecisionCredit'
+        decision_finale = self._scoreur.predire(demande)
 
-        log.DEBUG_PARAMETER_VALUE("probabilite_defaut" , demande.id_demande)
-        log.DEBUG_PARAMETER_VALUE("decision.value"     , decision.decision.value )
-        log.DEBUG_PARAMETER_VALUE("score.valeur"       , f"{decision.score.valeur:.4f}")
-        log.DEBUG_PARAMETER_VALUE("latence_ms"         , f"{decision.latence_ms:.2f}")
+        # -- Correction des logs après inférence --
+        # On utilise 'decision_finale' (le résultat) et non 'demande' (l'entrée)
+        log.DEBUG_PARAMETER_VALUE("probabilite_defaut", f"{decision_finale.score.valeur:.4f}")
+        log.DEBUG_PARAMETER_VALUE("decision.value",     decision_finale.decision.value)
+        log.DEBUG_PARAMETER_VALUE("score.valeur",       f"{decision_finale.score.valeur:.4f}")
+        log.DEBUG_PARAMETER_VALUE("latence_ms",         f"{decision_finale.latence_ms:.2f}")
         
         # -- Journalisation pour le monitoring du drift -----------------------
         log.STEP(2, "Journalisation" , "Pour le monitoring du drift")
         try:
-            self._journaliseur.journaliser(demande, decision)
+            self._journaliseur.journaliser(demande, decision_finale)
         except IOError as erreur:
             # On loggue l'erreur mais on ne bloque pas la réponse client
             journalapp.warning(
                 "Journalisation échouée pour id=%s : %s",
-                demande.id_demande,
+                demande.id,
                 erreur,
             )
 
         log.FINISH_ACTION(self.__class__.__name__, inspect.currentframe().f_code.co_name , "FINISH")
-        return decision
+
+        return decision_finale

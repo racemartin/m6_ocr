@@ -120,7 +120,7 @@ def run_phase1_2(
     # Distribution de la target
     if "target" in df_train.columns:
         dist = df_train["target"].value_counts(normalize=True)
-        print(f"\n    📊 Distribution TARGET (train) :")
+        print("\n    📊 Distribution TARGET (train) :")
         print(f"       Classe 0 (remboursé) : {dist.get(0, 0)*100:.1f}%")
         print(f"       Classe 1 (défaut)    : {dist.get(1, 0)*100:.1f}%")
         results["default_rate"] = float(dist.get(1, 0))
@@ -168,7 +168,7 @@ def run_phase1_2(
     config_path = Path("config")
     config_path.mkdir(exist_ok=True)
     REGISTRY.to_yaml(str(config_path / "feature_registry.yaml"))
-    print(f"  ✅ YAML exporté → config/feature_registry.yaml")
+    print("  ✅ YAML exporté → config/feature_registry.yaml")
 
     # Sync vers PostgreSQL (engine SQLAlchemy → pandas to_sql fonctionne directement)
     REGISTRY.sync_to_db(engine)

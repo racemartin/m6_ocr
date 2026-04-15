@@ -22,7 +22,6 @@ import logging                              # Logger du module
 import warnings                             # Avertissements contrôlés
 from   pathlib import Path                  # Chemins de fichiers
 from   typing  import Dict, List, Optional, Tuple  # Typage
-import warnings
 # ==============================================================================
 # IMPORTS - LIBRAIRIES TIERS (DATA)
 # ==============================================================================
@@ -47,7 +46,6 @@ from   sklearn.preprocessing import (                 # Encodage + scaling
 # IMPORTS - MODULES INTERNES (REGISTRE MÉTIER ↔ TECHNIQUE)
 # ==============================================================================
 from   src.data.schema import (                  # Registre et enums du projet
-    ColumnRole,
     ColumnType,
     EncodingType,
     FeatureRegistry,
@@ -192,7 +190,7 @@ class FeatureConfigurator:
         ]:
             setattr(self, attr_list, [c for c in getattr(self, attr_list) if c not in _exclude])
 
-        self._log(f"\n  Listes dérivées automatiquement depuis le registre :")
+        self._log("\n  Listes dérivées automatiquement depuis le registre :")
         self._log(f"    OHE           : {len(self.cols_ohe_active)} cols")
         self._log(f"    Ordinal       : {len(self.cols_ordinal_active)} cols")
         self._log(f"    Target Enc.   : {len(self.cols_target_active)} cols")
@@ -679,7 +677,7 @@ class FeatureConfigurator:
         self.registry.to_yaml(str(output_path / "registry_snapshot.yaml"))
 
         self._log(f"\n  💾 Artefacts sauvegardés : {output_path}/")
-        self._log(f"     preprocessor.pkl · learned_params.json · feature_names.json · registry_snapshot.yaml")
+        self._log("     preprocessor.pkl · learned_params.json · feature_names.json · registry_snapshot.yaml")
 
     @classmethod
     def load_artifacts(

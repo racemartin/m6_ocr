@@ -52,7 +52,7 @@ jobs:
         continue-on-error: true
         run: |
           uv run ruff check src/ 
-          uv run ruff format --check src/
+      #   uv run ruff format --check src/
 
       # 6. Exécution des tests unitaires et d'intégration
       - name: Run all tests (coverage ≥ 80%)

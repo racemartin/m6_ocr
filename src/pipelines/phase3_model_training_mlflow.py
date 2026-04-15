@@ -88,12 +88,8 @@ from   sklearn.ensemble        import (
 # ── Scikit-learn (Évaluation et Splits) ────────────────────────────────────
 from   sklearn.model_selection import train_test_split   # Séparation des sets
 from   sklearn.metrics         import (
-    accuracy_score,                           # Précision globale
-    f1_score,                                 # Moyenne harmonique P/R
     fbeta_score,                              # Score F-beta (F2 ciblé)
-    precision_score,                          # Exactitude des positifs
-    recall_score,                             # Capacité de détection
-    roc_auc_score                             # Capacité de discrimination
+                                 # Capacité de discrimination
 )
 
 # ── Bibliothèques pour le Déséquilibre (Imbalanced-Learn) ──────────────────

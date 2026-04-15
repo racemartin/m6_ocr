@@ -9,7 +9,6 @@
 # --- Bibliothèques standard ---------------------------------------------------
 from dataclasses import dataclass  # Décorateur pour classes de données
 from enum        import Enum       # Énumération typée
-from typing      import List       # Annotations generiques
 
 
 # =============================================================================

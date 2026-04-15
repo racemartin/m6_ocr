@@ -29,7 +29,6 @@ import re
 from pathlib import Path
 from typing import Optional
 
-import numpy as np
 import pandas as pd
 
 
@@ -340,7 +339,7 @@ def _generate_attribute_code(col_info: dict, descriptions: dict) -> str:
 
     # Corps de build_attribute_spec
     lines = [
-        f'        build_attribute_spec(',
+        '        build_attribute_spec(',
         f'            "{col}",',
         f'            "{name_metier}",  # TODO: réviser name_metier',
         f'            "{tech}",',
@@ -550,8 +549,8 @@ def main():
         f.write(code)
 
     print(f"\n✅ Fichier généré : {args.output}")
-    print(f"   → Réviser les 'TODO: réviser name_metier' avant d'utiliser")
-    print(f"   → Copier le contenu dans schema.py\n")
+    print("   → Réviser les 'TODO: réviser name_metier' avant d'utiliser")
+    print("   → Copier le contenu dans schema.py\n")
 
 
 if __name__ == "__main__":

@@ -98,6 +98,9 @@ services:
       context: .
       dockerfile: Dockerfile.streamlit
     container_name: m7_dashboard
+    environment:
+      - STREAMLIT_APP=monitoring/dashboard.py
+      - API_URL=http://api:8000
     ports:
       - "8501:8501" # Acceso UI Dashboard
     volumes:
@@ -107,6 +110,25 @@ services:
     depends_on:
       api:
         condition: service_healthy # Solo arranca si la API responde /health
+    restart: unless-stopped
+
+  simulator:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    container_name: m7_simulator
+    ports:
+      - "8502:8502"
+    volumes:
+      - ./predictions.jsonl:/app/predictions.jsonl
+      - ./monitoring:/app/monitoring
+      - ./model_artifact:/app/model_artifact
+    environment:
+      - STREAMLIT_APP=monitoring/simulator.py
+      - API_URL=http://api:8000    # en Docker los servicios se llaman por nombre, no localhost
+    depends_on:
+      api:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

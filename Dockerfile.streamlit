@@ -1,0 +1,29 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Dependencias del sistema (ONNX runtime necesita libgomp)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgomp1 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Dependencias Python — mismo requirements.txt que la API
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Código fuente necesario para el dashboard y el simulador
+COPY monitoring/      ./monitoring/
+COPY model_artifact/  ./model_artifact/
+COPY src/             ./src/
+
+# Puerto por defecto Streamlit
+EXPOSE 8501
+
+# Variable para elegir qué app lanzar (dashboard o simulator)
+ENV STREAMLIT_APP=monitoring/dashboard.py
+
+CMD ["sh", "-c", "python -m streamlit run ${STREAMLIT_APP} \
+    --server.port 8501 \
+    --server.address 0.0.0.0 \
+    --server.headless true"]

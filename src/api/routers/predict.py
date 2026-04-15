@@ -29,17 +29,16 @@ from src.api.application.evaluate_credit_use_case import (
 
 # --- Domaine -----------------------------------------------------------------
 from src.api.domain.entities import DemandeCredit             # Entité domaine
+import os
+import inspect
+from src.tools.rafael.log_tool import LogTool
 
 # Journalisation du module
 journal = logging.getLogger(__name__)
 
 # Instance du router FastAPI pour ce groupe de routes
-routeur = APIRouter()
-
-import os
-import inspect
-from src.tools.rafael.log_tool import LogTool
-log = LogTool(origin="router ")
+routeur     = APIRouter()
+log         = LogTool(origin="router ")
 NOM_FICHIER = os.path.basename(__file__)
 
 # ##############################################################################
@@ -83,9 +82,10 @@ def evaluer_credit(
         HTTPException 500 : Erreur interne du moteur de scoring.
     """
     log.START_ACTION(NOM_FICHIER, inspect.currentframe().f_code.co_name , "POST /predict BEGING")
-    log.DEBUG_PARAMETER_VALUE("age"          , donnees_entree.age)
-    log.DEBUG_PARAMETER_VALUE("revenu"       , donnees_entree.revenu)
-    log.DEBUG_PARAMETER_VALUE("montant_pret" , donnees_entree.montant_pret)
+    log.DEBUG_PARAMETER_VALUE("age", donnees_entree.age)
+    log.DEBUG_PARAMETER_VALUE("ext_source_2", donnees_entree.ext_source_2)
+    log.DEBUG_PARAMETER_VALUE("amt_credit", donnees_entree.amt_credit)
+    log.DEBUG_PARAMETER_VALUE("education", donnees_entree.education_type)
 
     # -- Conversion schéma API → entité domaine ------------------------------
     demande = _schema_vers_entite(donnees_entree)
@@ -150,29 +150,41 @@ def evaluer_credit(
 # ##############################################################################
 
 # =============================================================================
+# EN: src/api/routers/predict.py
+# =============================================================================
 def _schema_vers_entite(schema: ClientDataInput) -> DemandeCredit:
     """
     Convertit un schéma Pydantic en entité domaine DemandeCredit.
-
-    Isole la couche API du domaine : DemandeCredit ne dépend pas
-    de Pydantic, et ClientDataInput ne dépend pas du domaine.
-
-    Args:
-        schema : Données validées depuis le corps JSON de la requête.
-
-    Returns:
-        DemandeCredit prête à être traitée par le use case.
+    Mise à jour : Utilisation des 20 features top SHAP.
     """
     return DemandeCredit(
+        # 1-3: Scores externes
+        ext_source_1             = schema.ext_source_1,
+        ext_source_2             = schema.ext_source_2,
+        ext_source_3             = schema.ext_source_3,
+
+        # 4-8: Comportement et âge
+        paymnt_ratio_mean        = schema.paymnt_ratio_mean,
         age                      = schema.age,
-        revenu                  = schema.revenu,
-        montant_pret             = schema.montant_pret,
-        duree_pret_mois          = schema.duree_pret_mois,
-        jours_retard_moyen             = schema.jours_retard_moyen,
-        taux_incidents              = schema.taux_incidents,
-        taux_utilisation_credit  = schema.taux_utilisation_credit,
-        nb_comptes_ouverts       = schema.nb_comptes_ouverts,
-        type_residence           = schema.type_residence,
-        objet_pret               = schema.objet_pret,
-        type_pret                = schema.type_pret,
+        cc_drawings_mean         = schema.cc_drawings_mean,
+        paymnt_delay_mean        = schema.paymnt_delay_mean,
+        pos_months_mean          = schema.pos_months_mean,
+
+        # 9-11: Prix et Catégories
+        goods_price              = schema.goods_price,
+        education_type           = schema.education_type,
+        code_gender              = schema.code_gender,
+
+        # 12-16: Crédit et Bureau
+        bureau_credit_total      = schema.bureau_credit_total,
+        max_dpd                  = schema.max_dpd,
+        amt_credit               = schema.amt_credit,
+        amt_annuity              = schema.amt_annuity,
+        cc_balance_mean          = schema.cc_balance_mean,
+
+        # 17-20: Emploi, Téléphone et Région
+        years_employed           = schema.years_employed,
+        phone_change_days        = schema.phone_change_days,
+        region_rating            = schema.region_rating,
+        bureau_debt_mean         = schema.bureau_debt_mean
     )

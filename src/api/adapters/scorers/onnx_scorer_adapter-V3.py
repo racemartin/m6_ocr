@@ -38,7 +38,6 @@
 import json                                           # Lecture metadonnees
 import logging                                        # Journalisation
 import time                                           # Mesure latence
-from   pathlib import Path                            # Chemins multi-OS
 from   typing  import Dict, List, Optional            # Annotations
 
 # --- Bibliotheques tierces : donnees -----------------------------------------
@@ -55,7 +54,6 @@ import shap                                           # Explicabilite SHAP
 # --- Domaine -----------------------------------------------------------------
 from src.api.domain.entities      import DemandeCredit, DecisionCredit
 from src.api.domain.value_objects import (
-    Decision,
     ScoreRisque,
     ExplicationShap,
 )
@@ -64,12 +62,13 @@ from src.api.ports.i_credit_scorer import ICreditScorer
 # --- Configuration -----------------------------------------------------------
 from config import parametres, DOSSIER_ARTEFACT
 import warnings
-
-# Journalisation du module
-journalapp = logging.getLogger(__name__)
 import os
 import inspect
 from src.tools.rafael.log_tool import LogTool
+
+# Journalisation du module
+journalapp = logging.getLogger(__name__)
+
 log = LogTool(origin="adapter")
 NOM_FICHIER = os.path.basename(__file__)
 

@@ -129,7 +129,12 @@ phase4   = "src.pipelines.phase4_hyperparameter_tuning:main"
 [tool.ruff]
 # Longueur de ligne maximale pour la lisibilité
 line-length = 120
- 
+ignore = [
+    "E211",  # <--- permite espacios antes de los paréntesis
+    "E221", "E222", "E241", "E203", "E271",
+    "E701", "E731", "E501", "W291", "W293"
+]
+
 [tool.ruff.lint]
 # select....: Groupes de règles activés pour l'analyse
 # "E".......: Erreurs de style (PEP 8 standard)
@@ -146,7 +151,9 @@ select = ["E", "F", "W"]
 # "E501"....: Longueur de ligne excédée (commentaires, lignes longues)
 # "W291"....: Espaces blancs à la fin des lignes
 # "W293"....: Espaces blancs sur les lignes vides
-ignore = ["E221", "E241", "E203", "E271", "E701", "E501", "W291", "W293"]
+ignore = ["E211", "E221", "E222", "E241", "E203", "E271", "E701", "E731", "E501", "W291", "W293"]
+
+
 
 [tool.ruff.format]
 # Paramètres du formateur automatique

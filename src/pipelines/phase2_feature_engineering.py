@@ -194,7 +194,6 @@ def _controles_qualite(
     
     """
     import numpy as np
-    import pandas as pd
 
     # ─────────────────────────────────────────────────────────────────────
     # 1. NaN résiduels

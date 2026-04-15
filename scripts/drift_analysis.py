@@ -56,6 +56,70 @@ FEATURES_NUMERIQUES = [
     "nb_comptes_ouverts", "probabilite_defaut",
 ]
 
+# =============================================================================
+# SELECCIÓN DE FEATURES PARA MONITOREO DE DRIFT (Top 20 SHAP)
+# Se usan los nombres de las columnas originales para alineación con el dataset de referencia.
+# =============================================================================
+
+COLONNES_INTERET = [
+    # 1-3: Scores externos (Críticos)
+    "ext_source_2",
+    "ext_source_3",
+    "ext_source_1",
+
+    # 4-8: Comportamiento de pagos y antigüedad
+    "install_payment_ratio_mean",
+    "days_birth",                # Representa 'age'
+    "cc_amt_drawings_current_mean",
+    "install_payment_delay_mean",
+    "pos_months_balance_mean",
+
+    # 9-11: Precio y Variables Categóricas (OHE)
+    "amt_goods_price",
+    "name_education_type",       # Se monitoriza la columna original antes del OHE
+    "code_gender",               # Se monitoriza la columna original antes del OHE
+
+    # 12-16: Créditos y Bureau
+    "bureau_amt_credit_sum_total",
+    "install_dpd_max",
+    "amt_credit",
+    "amt_annuity",
+    "cc_amt_balance_mean",
+
+    # 17-20: Estabilidad y Región
+    "days_employed",
+    "days_last_phone_change",
+    "region_rating_client",
+    "bureau_amt_credit_sum_debt_mean"
+]
+
+# Mapeo: Nombre en la API (Pydantic) -> Nombre en el Dataset Original (CSV)
+MAPPING_REVERSO = {
+    "ext_source_1": "ext_source_1",
+    "ext_source_2": "ext_source_2",
+    "ext_source_3": "ext_source_3",
+    "paymnt_ratio_mean": "install_payment_ratio_mean",
+    "age": "days_birth",
+    "cc_drawings_mean": "cc_amt_drawings_current_mean",
+    "paymnt_delay_mean": "install_payment_delay_mean",
+    "pos_months_mean": "pos_months_balance_mean",
+    "goods_price": "amt_goods_price",
+    "education_type": "name_education_type",
+    "code_gender": "code_gender",
+    "bureau_credit_total": "bureau_amt_credit_sum_total",
+    "max_dpd": "install_dpd_max",
+    "amt_credit": "amt_credit",
+    "amt_annuity": "amt_annuity",
+    "cc_balance_mean": "cc_amt_balance_mean",
+    "years_employed": "days_employed",
+    "phone_change_days": "days_last_phone_change",
+    "region_rating": "region_rating_client",
+    "bureau_debt_mean": "bureau_amt_credit_sum_debt_mean"
+}
+
+# Identificación de tipos para Evidently
+CATEGORICAL_FEATURES = ["name_education_type", "code_gender", "region_rating_client"]
+
 # ##############################################################################
 # Fonctions de chargement
 # ##############################################################################
@@ -117,99 +181,64 @@ def main() -> None:
         sys.exit(1)
 
     # ---- ETAPE 2: Harmonisation via Preprocesseur ---------------------------
-    log.STEP(6, "2. Harmonisation via Preprocesseur")
+    log.STEP(6, "2. Harmonisation via Preprocesseur (Top 20 SHAP)")
 
-    # -- Chargement du preprocesseur ------------------------------------------
-    preprocessor = joblib.load(DOSSIER_ARTEFACT / "preprocessor.pkl")
-
-    try:
-        cols_requises = list(preprocessor.feature_names_in_)
-    except AttributeError:
-        log.LEVEL_4_ERROR(NOM_FICHIER, "No se pudo extraer feature_names_in_ del preprocesador.")
-        sys.exit(1)
-
-    noms_features = list(preprocessor.get_feature_names_out())
-
-    # -- Mapeo predictions.jsonl (noms Python) → colonnes du preprocesseur ----
+    # -- Mapeo Actualizado: API (Python) → Dataset Original (Preprocesador) ----
     MAPPING_REVERSO = {
-        "age"                     : "days_birth",
-        "type_residence"          : "name_housing_type",
-        "revenu"                  : "amt_income_total",
-        "montant_pret"            : "amt_credit",
-        "duree_pret_mois"         : "duree_pret_mois",
-        "type_pret"               : "name_contract_type",
-        "objet_pret"              : "name_type_suite",
-        "jours_retard_moyen"      : "avg_dpd_per_delinquency",
-        "taux_incidents"          : "delinquency_ratio",
-        "taux_utilisation_credit" : "credit_utilization_ratio",
-        "nb_comptes_ouverts"      : "num_open_accounts",
+        "ext_source_1": "ext_source_1",
+        "ext_source_2": "ext_source_2",
+        "ext_source_3": "ext_source_3",
+        "paymnt_ratio_mean": "install_payment_ratio_mean",
+        "age": "days_birth",
+        "cc_drawings_mean": "cc_amt_drawings_current_mean",
+        "paymnt_delay_mean": "install_payment_delay_mean",
+        "pos_months_mean": "pos_months_balance_mean",
+        "goods_price": "amt_goods_price",
+        "education_type": "name_education_type",
+        "code_gender": "code_gender",
+        "bureau_credit_total": "bureau_amt_credit_sum_total",
+        "max_dpd": "install_dpd_max",
+        "amt_credit": "amt_credit",
+        "amt_annuity": "amt_annuity",
+        "cc_balance_mean": "cc_amt_balance_mean",
+        "years_employed": "days_employed",
+        "phone_change_days": "days_last_phone_change",
+        "region_rating": "region_rating_client",
+        "bureau_debt_mean": "bureau_amt_credit_sum_debt_mean"
     }
 
-    # -- Colonnes catégorielles (ne pas forcer float sur ces colonnes) ---------
-    # Le preprocesseur attend des chaînes pour l'OneHotEncoder.
-    COLS_CATEGORIES = {"name_housing_type", "name_contract_type", "name_type_suite"}
+    # Categorías que el OneHotEncoder del preprocesador espera como String
+    COLS_CATEGORIES = {"name_education_type", "code_gender"}
 
-    # -- Construction df_full_cur (predictions → espace preprocesseur) --------
-    # Initialiser avec None (pas float) pour éviter de casser les catégorielles
-    # df_full_cur = pd.DataFrame(index=df_cur.index, columns=cols_requises, dtype=object)
-
-    # Por esto (o asegúrate de convertir después):
+    # -- Construcción df_full_cur (Alinear con el espacio del preprocesador) --
     df_full_cur = pd.DataFrame(index=df_cur.index, columns=cols_requises)
-    df_full_cur = df_full_cur.astype(float, errors='ignore')
 
-    # Convertir age en jours négatifs (convention Home Credit)
-    if "age" in df_cur.columns:
-        df_cur = df_cur.copy()
-        df_cur["age"] = -(df_cur["age"] * 365)
+    # 1. Aplicar transformaciones de unidades antes del mapeo
+    df_cur_prep = df_cur.copy()
+    if "age" in df_cur_prep.columns:
+        df_cur_prep["age"] = -(df_cur_prep["age"] * 365)
+    if "years_employed" in df_cur_prep.columns:
+        df_cur_prep["years_employed"] = -(df_cur_prep["years_employed"] * 365)
 
-    # Remplir colonne par colonne en respectant le type
-    for col_json, col_preproc in MAPPING_REVERSO.items():
-        if col_json in df_cur.columns and col_preproc in df_full_cur.columns:
-            if col_preproc in COLS_CATEGORIES:
-                # Chaîne — laisser comme object pour l'OHE
-                df_full_cur[col_preproc] = df_cur[col_json].astype(str)
+    # 2. Rellenar df_full_cur usando el nuevo mapeo
+    for api_col, preproc_col in MAPPING_REVERSO.items():
+        if api_col in df_cur_prep.columns and preproc_col in df_full_cur.columns:
+            if preproc_col in COLS_CATEGORIES:
+                df_full_cur[preproc_col] = df_cur_prep[api_col].astype(str)
             else:
-                # Numérique — convertir en float
-                df_full_cur[col_preproc] = pd.to_numeric(df_cur[col_json], errors="coerce")
+                df_full_cur[preproc_col] = pd.to_numeric(df_cur_prep[api_col], errors="coerce")
 
-    # Colonnes numériques non mappées → NaN float (l'imputer les remplira)
-    for col in cols_requises:
-        if col not in COLS_CATEGORIES and col not in MAPPING_REVERSO.values():
-            df_full_cur[col] = pd.to_numeric(df_full_cur[col], errors="coerce")
-
-    # -- Transformation df_cur_ali --------------------------------------------
+    # 3. Transformación final hacia el espacio de entrenamiento (df_cur_ali)
     try:
-        import warnings
         with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
+            warnings.filterwarnings("ignore", category=UserWarning)
             X_cur_transforme = preprocessor.transform(df_full_cur)
+
         df_cur_ali = pd.DataFrame(X_cur_transforme, columns=noms_features)
         log.DEBUG_PARAMETER_VALUE("df_cur_ali shape", df_cur_ali.shape)
     except Exception as e:
-        log.LEVEL_4_ERROR(NOM_FICHIER, f"Erreur transformation predictions : {str(e)}")
+        log.LEVEL_4_ERROR(NOM_FICHIER, f"Erreur transformation : {str(e)}")
         raise
-
-    # -- Transformation df_ref_ali (reference_data.csv → même espace) --------
-    # Le CSV est déjà dans l'espace du preprocesseur (noms colonnes identiques).
-    # On filtre les colonnes communes et on transforme directement.
-    try:
-        cols_ref_presentes = [c for c in cols_requises if c in df_ref.columns]
-        df_ref_pour_transform = pd.DataFrame(index=df_ref.index, columns=cols_requises, dtype=object)
-        for col in cols_requises:
-            if col in df_ref.columns:
-                if col in COLS_CATEGORIES:
-                    df_ref_pour_transform[col] = df_ref[col].astype(str)
-                else:
-                    df_ref_pour_transform[col] = pd.to_numeric(df_ref[col], errors="coerce")
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
-            X_ref_transforme = preprocessor.transform(df_ref_pour_transform)
-        df_ref_ali = pd.DataFrame(X_ref_transforme, columns=noms_features)
-        log.DEBUG_PARAMETER_VALUE("df_ref_ali shape", df_ref_ali.shape)
-    except Exception as e:
-        log.LEVEL_4_ERROR(NOM_FICHIER, f"Erreur transformation reference : {str(e)}")
-        raise
-
     log.DEBUG_PARAMETER_VALUE("Colonnes alignees", len(noms_features))
 
     # ---- ETAPE 3: Analyse Evidently -----------------------------------------

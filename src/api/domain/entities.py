@@ -14,6 +14,7 @@ from uuid        import UUID, uuid4       # Identifiant unique de la demande
 from src.api.domain.value_objects import Decision, ScoreRisque  # Concepts métier
 
 from enum import Enum
+from typing import List
 
 class TypeResidence(str, Enum):
     HOUSE = "House / apartment"
@@ -37,8 +38,47 @@ class TypePret(str, Enum):
 # Représente la requête entrante avec toutes les caractéristiques du client.
 # C'est l'objet qui traverse toutes les couches de l'architecture hexagonale.
 # =============================================================================
-@dataclass
+@dataclass(frozen=True)
 class DemandeCredit:
+    # --- 1. Primero todas las variables OBLIGATORIAS (las 20 de SHAP) ---
+    ext_source_1: float
+    ext_source_2: float
+    ext_source_3: float
+    paymnt_ratio_mean: float
+    age: int
+    cc_drawings_mean: float
+    paymnt_delay_mean: float
+    pos_months_mean: float
+    goods_price: float
+    education_type: str
+    code_gender: str
+    bureau_credit_total: float
+    max_dpd: float
+    amt_credit: float
+    amt_annuity: float
+    cc_balance_mean: float
+    years_employed: int
+    phone_change_days: float
+    region_rating: int
+    bureau_debt_mean: float
+
+    # --- 2. Al final las variables con VALOR POR DEFECTO ---
+    id: UUID = field(default_factory=uuid4)
+    date_demande: datetime = field(default_factory=datetime.now)
+
+    def to_list(self) -> List:
+            """Mantiene compatibilidad si algún método requiere la lista plana"""
+            return [
+                self.ext_source_1, self.ext_source_2, self.ext_source_3,
+                self.paymnt_ratio_mean, self.age, self.cc_drawings_mean,
+                self.paymnt_delay_mean, self.pos_months_mean, self.goods_price,
+                self.education_type, self.code_gender, self.bureau_credit_total,
+                self.max_dpd, self.amt_credit, self.amt_annuity,
+                self.cc_balance_mean, self.years_employed, self.phone_change_days,
+                self.region_rating, self.bureau_debt_mean
+            ]
+@dataclass
+class DemandeCredit_V1:
     """
     Demande de crédit soumise par un client.
 
@@ -97,7 +137,7 @@ class DemandeCredit:
     type_pret:      TypePret      = TypePret.CASH
 
     # -------------------------------------------------------------------------
-    def vers_tableau_features(self) -> list:
+    def vers_tableau_features(self) -> List:
         """
         Sérialise la demande en liste ordonnée pour l'inférence ONNX.
 
@@ -127,6 +167,12 @@ class DemandeCredit:
 # ENTITÉ : DÉCISION DE CRÉDIT
 # Résultat enrichi produit par le use case après scoring et logging.
 # =============================================================================
+@dataclass
+class ExplicationFeature:
+    feature_name: str
+    valeur: float
+    contribution: float
+
 @dataclass(frozen=True)
 class DecisionCredit:
     """
@@ -149,4 +195,4 @@ class DecisionCredit:
     decision:   Decision    # Décision binaire issue du seuil
     latence_ms: float       # Durée d'inférence (ms)
     seuil_utilise: float    # Le seuil appliqué pour cette décision
-    explications_shap: List[ExplicationFeature] = field(default_factory=list)
+    explications_shap: List[ExplicationFeature] = field(default_factory=List)

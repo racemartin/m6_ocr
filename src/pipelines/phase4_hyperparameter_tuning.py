@@ -66,7 +66,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
 import time
 import traceback
 import warnings
@@ -111,9 +110,13 @@ from sklearn.metrics import (
     confusion_matrix,
 )
 
+# --- Scikit-Learn: Estructura y Modelos --------------------------------------
+from sklearn.pipeline import Pipeline
 
 from sklearn.base import clone as sklearn_clone
-import numpy as np
+
+# --- Manejo de Desbalanceo (Imbalanced-Learn) --------------------------------
+from imblearn.over_sampling import SMOTE
 
 # ── Garde-fous pour les librairies optionnelles ────────────────────────────
 warnings.filterwarnings("ignore")
@@ -932,7 +935,7 @@ class Phase4Pipeline:
         
         # Coût métier (même logique que ton scorer)
         business_cost    = (10 * fn) + (1 * fp)
-        business_cost_n  = -float(business_cost)  # version "score" (plus grand = mieux)
+        #business_cost_n  = -float(business_cost)  # version "score" (plus grand = mieux)
         
         eval_metrics = {
             "f2":            fbeta_score(self.y_eval, y_pred_eval, beta=2, zero_division=0),
@@ -1063,22 +1066,24 @@ class Phase4Pipeline:
         # ✅ TEST DIRECTO DEL SCORER — antes del study
 
         # print("[SCORER TEST] Test directo del scorer...")
-        test_model = DecisionTreeClassifier(max_depth=3, random_state=self.random_state)
-        test_cv = StratifiedKFold(n_splits=2, shuffle=True, random_state=42)  # usa el ya importado
-        
-        test_scores = cross_val_score(
-            test_model,
-            self.X_train, self.y_train,
-            cv=test_cv,
-            scoring=self.business_scorer,
-            n_jobs=1
-        )
+        # test_model = DecisionTreeClassifier(max_depth=3, random_state=self.random_state)
+        # test_cv = StratifiedKFold(n_splits=2, shuffle=True, random_state=42)  # usa el ya importado
+
+        #test_scores = cross_val_score(
+        #    test_model,
+        #    self.X_train, self.y_train,
+        #    cv=test_cv,
+        #    scoring=self.business_scorer,
+        #    n_jobs=1
+        #)
         # print(f"[SCORER TEST] scores = {test_scores}")
         # print(f"[SCORER TEST] scorer = {self.business_scorer}")
         
-        y_dummy_true = self.y_train[:1000]
-        test_model.fit(self.X_train[:5000], self.y_train[:5000])
-        y_dummy_proba = test_model.predict_proba(self.X_train[:1000])
+
+        # y_dummy_true = self.y_train[:1000]
+        # test_model.fit(self.X_train[:5000], self.y_train[:5000])
+
+        # y_dummy_proba = test_model.predict_proba(self.X_train[:1000])
         # print(f"[SCORER TEST] custom_metier_scorer direct = {custom_metier_scorer(y_dummy_true, y_dummy_proba)}")
         
         # ── Création et lancement de la Study ─────────────────────────────

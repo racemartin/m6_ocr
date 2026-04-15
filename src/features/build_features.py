@@ -4,15 +4,11 @@
 
 # Traitement des données
 import pandas             as pd                 # Manipulation de DataFrames
-import numpy              as np                 # Calculs numériques
 
 # Accès aux bases de données et schémas
 from   src.database       import get_engine     # Connexion PostgreSQL
 from   src.data.schema    import (              # Définitions du registre
-    REGISTRY,
-    ColumnType,
-    TransformType,
-    EncodingType
+    REGISTRY
 )
 
 # ##############################################################################

@@ -5,7 +5,7 @@
 # =============================================================================
 
 # --- Bibliothèques standard ---------------------------------------------------
-from typing import Annotated  # Annotations avec métadonnées de validation
+from typing import Annotated, Literal # Annotations avec métadonnées de validation
 
 # --- Pydantic — Validation et documentation automatique ----------------------
 from pydantic import BaseModel, Field  # Modèle de données avec contraintes
@@ -14,7 +14,43 @@ from pydantic import BaseModel, Field  # Modèle de données avec contraintes
 # =============================================================================
 # SCHÉMA : DONNÉES D'ENTRÉE CLIENT
 # =============================================================================
+
+
 class ClientDataInput(BaseModel):
+    # Variables críticas (Scores externos)
+    ext_source_1: Annotated[float, Field(ge=0.01, le=0.96, examples=[0.5])]
+    ext_source_2: Annotated[float, Field(ge=0.0, le=0.85, examples=[0.5])]
+    ext_source_3: Annotated[float, Field(ge=0.0, le=0.90, examples=[0.5])]
+
+    # Comportamiento de pagos
+    paymnt_ratio_mean: Annotated[float, Field(ge=0.0, le=1.0)]
+    paymnt_delay_mean: Annotated[float, Field(ge=0.0)]
+    max_dpd: Annotated[float, Field(ge=0.0)]
+
+    # Datos personales y demográficos
+    age: Annotated[int, Field(ge=18, le=70)]
+    years_employed: Annotated[int, Field(ge=0, le=50)]
+    code_gender: Annotated[Literal["M", "F", "XNA"], Field(examples=["F"])]
+    education_type: Annotated[Literal[
+        "Secondary / secondary special", "Higher education",
+        "Incomplete higher", "Lower secondary", "Academic degree"
+    ], Field(examples=["Higher education"])]
+
+    # Financieros
+    amt_credit: Annotated[float, Field(ge=45000)]
+    amt_annuity: Annotated[float, Field(ge=1600)]
+    goods_price: Annotated[float, Field(ge=40000)]
+
+    # Buró y otros
+    bureau_credit_total: float
+    bureau_debt_mean: float
+    pos_months_mean: float
+    cc_drawings_mean: float
+    cc_balance_mean: float
+    phone_change_days: float
+    region_rating: Annotated[int, Field(ge=1, le=3)]
+
+class ClientDataInput_V1(BaseModel):
     """
     Corps de la requête POST /predict.
 

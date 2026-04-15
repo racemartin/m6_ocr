@@ -8,9 +8,9 @@
 from pathlib import Path  # Chemins indépendants du système d'exploitation
 
 # --- Pydantic settings (lecture .env et variables d'environnement) -----------
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-
+# --- IMPORTANTE: Configuración de Pydantic para eliminar el Warning ---
+from pydantic import ConfigDict
+from pydantic_settings import BaseSettings
 
 # =============================================================================
 # CLASSE DE CONFIGURATION PRINCIPALE
@@ -35,9 +35,8 @@ class Paramètres(BaseSettings):
     """
 
     # Esto le dice a Pydantic que ignore el prefijo "model_" como protegido
-    model_config = SettingsConfigDict(
-        protected_namespaces=('settings_',)
-    )
+    # Esta es la forma oficial y única necesaria en Pydantic V2:
+    model_config = ConfigDict(protected_namespaces=('settings_',))
 
     # -- Sélection du backend de scoring --------------------------------------
     model_backend: str = "onnx"  # "onnx" | "mlflow" — voir dependencies.py

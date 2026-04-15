@@ -12,14 +12,13 @@ import joblib   # Para cargar el .pkl
 
 # --- Bibliothèques scientifiques ----------------------------------------------
 import numpy as np  # Préparation du tableau de features pour ONNX
-import pandas as pd
 
 # --- Runtime ONNX (inférence rapide, sans dépendance sklearn) ----------------
 import onnxruntime as ort  # Moteur d'inférence ONNX multiplateforme
 
 # --- Domaine et port ----------------------------------------------------------
 from src.api.domain.entities      import DemandeCredit, DecisionCredit  # Contrat
-from src.api.domain.value_objects import Decision, ScoreRisque           # Concepts
+from src.api.domain.value_objects import ScoreRisque           # Concepts
 from src.api.ports.i_credit_scorer import ICreditScorer                  # Interface
 
 # --- Configuration globale ----------------------------------------------------

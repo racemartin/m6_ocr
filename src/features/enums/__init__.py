@@ -43,9 +43,6 @@ from .fondkapremont_mode import FondkapremontModeEnum
 from .housetype_mode import HousetypeModeEnum
 from .name_client_type import NameClientTypeEnum
 from .name_contract_status import NameContractStatusEnum
-from .name_contract_status import NameContractStatusEnum
-from .name_contract_status import NameContractStatusEnum
-from .name_contract_type import NameContractTypeEnum
 from .name_contract_type import NameContractTypeEnum
 from .name_education_type import NameEducationTypeEnum
 from .name_family_status import NameFamilyStatusEnum
@@ -56,14 +53,12 @@ from .name_portfolio import NamePortfolioEnum
 from .name_product_type import NameProductTypeEnum
 from .name_seller_industry import NameSellerIndustryEnum
 from .name_type_suite import NameTypeSuiteEnum
-from .name_type_suite import NameTypeSuiteEnum
 from .name_yield_group import NameYieldGroupEnum
 from .nflag_insured_on_approval import NflagInsuredOnApprovalEnum
 from .nflag_last_appl_in_day import NflagLastApplInDayEnum
 from .status import StatusEnum
 from .target import TargetEnum
 from .wallsmaterial_mode import WallsmaterialModeEnum
-from .weekday_appr_process_start import WeekdayApprProcessStartEnum
 from .weekday_appr_process_start import WeekdayApprProcessStartEnum
 
 
@@ -108,9 +103,6 @@ ALL_ENUMS = {
     "housetype_mode": HousetypeModeEnum,
     "name_client_type": NameClientTypeEnum,
     "name_contract_status": NameContractStatusEnum,
-    "name_contract_status": NameContractStatusEnum,
-    "name_contract_status": NameContractStatusEnum,
-    "name_contract_type": NameContractTypeEnum,
     "name_contract_type": NameContractTypeEnum,
     "name_education_type": NameEducationTypeEnum,
     "name_family_status": NameFamilyStatusEnum,
@@ -121,13 +113,11 @@ ALL_ENUMS = {
     "name_product_type": NameProductTypeEnum,
     "name_seller_industry": NameSellerIndustryEnum,
     "name_type_suite": NameTypeSuiteEnum,
-    "name_type_suite": NameTypeSuiteEnum,
     "name_yield_group": NameYieldGroupEnum,
     "nflag_insured_on_approval": NflagInsuredOnApprovalEnum,
     "nflag_last_appl_in_day": NflagLastApplInDayEnum,
     "status": StatusEnum,
     "target": TargetEnum,
     "wallsmaterial_mode": WallsmaterialModeEnum,
-    "weekday_appr_process_start": WeekdayApprProcessStartEnum,
     "weekday_appr_process_start": WeekdayApprProcessStartEnum,
 }

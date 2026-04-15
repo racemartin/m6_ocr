@@ -8,7 +8,6 @@
 import json      # Sérialisation de chaque ligne du journal
 import logging   # Journalisation interne de l'adaptateur
 import threading # Verrou pour accès concurrent (multi-workers Uvicorn)
-from pathlib import Path  # Gestion des chemins de fichier
 
 # --- Domaine et port ----------------------------------------------------------
 from src.api.domain.entities       import DemandeCredit, DecisionCredit  # Contrat
@@ -16,13 +15,13 @@ from src.api.ports.i_prediction_logger import IJournaliseurPredictions    # Inte
 
 # --- Configuration globale ----------------------------------------------------
 from config import parametres  # Chemin du fichier predictions.jsonl
-
-# Configuration du logger applicatif pour ce module
-journalapp = logging.getLogger(__name__)
 import os
 import inspect
 from src.tools.rafael.log_tool import LogTool
-log = LogTool(origin="adapter")
+
+# Configuration du logger applicatif pour ce module
+journalapp = logging.getLogger(__name__)
+log         = LogTool(origin="adapter")
 NOM_FICHIER = os.path.basename(__file__)
 
 
@@ -108,22 +107,33 @@ class JsonlJournaliseurAdapter(IJournaliseurPredictions):
             Si l'écriture dans le fichier échoue.
         """
         # -- Construction du dictionnaire à sérialiser -------------------------
+        # -- Construction du dictionnaire à sérialiser -------------------------
         ligne = {
-            "horodatage"             : demande.horodatage.isoformat() + "Z",
-            "id_demande"             : str(demande.id_demande),
-            # -- Features numériques ------------------------------------------
+            "horodatage"             : demande.date_demande.isoformat() + "Z",
+            "id_demande"             : str(demande.id),
+
+            # -- Las 20 features reales del modelo ----------------------------
+            "ext_source_1"           : demande.ext_source_1,
+            "ext_source_2"           : demande.ext_source_2,
+            "ext_source_3"           : demande.ext_source_3,
+            "paymnt_ratio_mean"      : demande.paymnt_ratio_mean,
             "age"                    : demande.age,
-            "revenu"                 : demande.revenu,
-            "montant_pret"           : demande.montant_pret,
-            "duree_pret_mois"        : demande.duree_pret_mois,
-            "jours_retard_moyen"     : demande.jours_retard_moyen,
-            "taux_incidents"         : demande.taux_incidents,
-            "taux_utilisation_credit": demande.taux_utilisation_credit,
-            "nb_comptes_ouverts"     : demande.nb_comptes_ouverts,
-            # -- Features catégorielles ---------------------------------------
-            "type_residence"         : demande.type_residence,
-            "objet_pret"             : demande.objet_pret,
-            "type_pret"              : demande.type_pret,
+            "cc_drawings_mean"       : demande.cc_drawings_mean,
+            "paymnt_delay_mean"      : demande.paymnt_delay_mean,
+            "pos_months_mean"        : demande.pos_months_mean,
+            "goods_price"            : demande.goods_price,
+            "education_type"         : demande.education_type,
+            "code_gender"            : demande.code_gender,
+            "bureau_credit_total"    : demande.bureau_credit_total,
+            "max_dpd"                : demande.max_dpd,
+            "amt_credit"             : demande.amt_credit,
+            "amt_annuity"            : demande.amt_annuity,
+            "cc_balance_mean"        : demande.cc_balance_mean,
+            "years_employed"         : demande.years_employed,
+            "phone_change_days"      : demande.phone_change_days,
+            "region_rating"          : demande.region_rating,
+            "bureau_debt_mean"       : demande.bureau_debt_mean,
+
             # -- Résultat du scoring ------------------------------------------
             "probabilite_defaut"     : round(decision.score.valeur, 6),
             "decision"               : decision.decision.value,
@@ -139,6 +149,6 @@ class JsonlJournaliseurAdapter(IJournaliseurPredictions):
 
         journalapp.debug(
             "Prédiction journalisée — id=%s, décision=%s",
-            demande.id_demande,
+            demande.id,
             decision.decision.value,
         )

@@ -30,7 +30,6 @@
 import json                                           # Lecture metadonnees
 import logging                                        # Journalisation
 import time                                           # Mesure latence
-from   pathlib import Path                            # Chemins multi-OS
 
 # --- Bibliotheques tierces : donnees -----------------------------------------
 import joblib                                         # Chargement preprocessor.pkl
@@ -42,7 +41,7 @@ import onnxruntime as ort                             # Inference ONNX multiplat
 
 # --- Domaine et port ---------------------------------------------------------
 from src.api.domain.entities       import DemandeCredit, DecisionCredit
-from src.api.domain.value_objects  import Decision, ScoreRisque
+from src.api.domain.value_objects  import ScoreRisque
 from src.api.ports.i_credit_scorer import ICreditScorer
 
 # --- Configuration -----------------------------------------------------------

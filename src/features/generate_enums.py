@@ -16,7 +16,6 @@ Usage :
 
 from __future__ import annotations
 
-import os
 import re
 from pathlib import Path
 
@@ -93,7 +92,7 @@ def _generate_enum_file(
 
     lines = [
         '"""',
-        f'Auto-généré par generate_enums.py — NE PAS ÉDITER MANUELLEMENT',
+        'Auto-généré par generate_enums.py — NE PAS ÉDITER MANUELLEMENT',
         f'Attribut : {name_technique} ({name_metier})',
         f'Description : {description}',
         '"""',
@@ -103,10 +102,10 @@ def _generate_enum_file(
         "",
         "",
         f"class {class_name}(str, Enum):",
-        f'    """',
+        '    """',
         f"    Valeurs de {name_metier}.",
-        f"    Mapping : valeur_metier → valeur_technique",
-        f'    """',
+        "    Mapping : valeur_metier → valeur_technique",
+        '    """',
         "",
     ]
 
@@ -242,7 +241,7 @@ def generate_enum_classes(
         f.write(init_content)
 
     print(f"\n   📄 {len(generated_files)} fichiers générés + __init__.py")
-    print(f"   Import : from src.features.enums import ContractTypeEnum\n")
+    print("   Import : from src.features.enums import ContractTypeEnum\n")
 
     return generated_files
 

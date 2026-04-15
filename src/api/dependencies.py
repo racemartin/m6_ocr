@@ -24,14 +24,13 @@ from src.api.ports.i_prediction_logger import IJournaliseurPredictions
 
 # --- Configuration globale ---------------------------------------------------
 from config import parametres  # MODEL_BACKEND et paramètres associés
-
-# Configuration du logger applicatif pour ce module
-journalapp = logging.getLogger(__name__)
-
 import os
 import inspect
 from src.tools.rafael.log_tool import LogTool
-log = LogTool(origin="UseCase")
+
+# Configuration du logger applicatif pour ce module
+journalapp  = logging.getLogger(__name__)
+log         = LogTool(origin="UseCase")
 NOM_FICHIER = os.path.basename(__file__)
 
 # =============================================================================

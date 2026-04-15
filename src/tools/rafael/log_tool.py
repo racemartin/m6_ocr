@@ -795,13 +795,13 @@ class LogTool:
         """
         # -- Normalisation des fins de ligne ---------------------------------
         message = message.replace("\r\n", "\n").replace("\n\r", "\n").replace("\r", "\n")
-        lines   = [l for l in message.split("\n") if l.strip()]
+        lines = [line for line in message.split("\n") if line.strip()]
 
         if not lines:
             return
 
         # -- Alignement sur la ligne la plus longue --------------------------
-        max_len = max(len(l.strip()) for l in lines)
+        max_len = max(len(line.strip()) for line in lines)
         for line in lines:
             self._log(line.strip().ljust(max_len), color)
 
@@ -810,13 +810,13 @@ class LogTool:
         message = message.replace("\r\n", "\n").replace("\n\r", "\n").replace("\r", "\n")
         
         # CAMBIO: Quitamos el .strip() de la lista para mantener la sangría
-        lines = [l for l in message.split("\n") if l] 
+        lines = [line for line in message.split("\n") if line]
 
         if not lines:
             return
 
         # Calculamos el máximo sin strip para que el ljust sea correcto
-        max_len = max(len(l) for l in lines)
+        max_len = max(len(line) for line in lines)
         for line in lines:
             # CAMBIO: Quitamos el .strip() aquí también
             self._log(line.ljust(max_len), color)
