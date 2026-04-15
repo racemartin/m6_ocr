@@ -53,4 +53,4 @@ jobs:
 
           # ⚠️ Cambia 'mombasstic/proyecto8-app' por tu Space real
           git remote add hf https://mombasstic:$HF_TOKEN@huggingface.co/spaces/mombasstic/pret_a_depenser || true
-          git push --force hf main
+          git push hf main:main --force
