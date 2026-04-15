@@ -21,7 +21,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copie de l'intégralité du code source dans le conteneur
 COPY . .
 
-
+RUN ls -lh /app/model_artifact/best_model.onnx && \
+    cat /app/model_artifact/best_model.onnx | head -n 3
+    
 # Configuration du chemin Python pour que les modules internes soient trouvés
 ENV PYTHONPATH=/app
 
