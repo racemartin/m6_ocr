@@ -3,9 +3,8 @@ title: Pret a depenser App
 emoji: 🚀
 colorFrom: blue
 colorTo: green
-sdk: streamlit
-sdk_version: "1.56.0"
-app_file: app.py
+sdk: docker
+app_port: 8501
 pinned: false
 license: mit
 ---
