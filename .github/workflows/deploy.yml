@@ -42,6 +42,7 @@ jobs:
 
           cp config.py            hf-deploy/config.py   
 
+
       - name: Push to Hugging Face Space
         env:
           HF_TOKEN: ${{ secrets.TOKEN_HUGGINGFACE_CI_CD_DEPLOY }}
