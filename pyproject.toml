@@ -50,6 +50,7 @@ dependencies = [
     # --- Dashboard & Visualisation ---
     "streamlit==1.38.0",          # Interface de supervision interactive
     "onnxruntime>=1.24.4",
+    "huggingface-hub>=1.4.1",
 ]
 
 # #############################################################################
