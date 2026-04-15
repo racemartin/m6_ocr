@@ -1,346 +1,213 @@
 # =============================================================================
-# optimization/profile_model.py — Profilage de performance du modèle
-# Mesure la latence d'inférence avec cProfile et benchmark N requêtes.
-# Permet de comparer sklearn natif vs ONNX Runtime et d'identifier
-# les fonctions les plus coûteuses dans le pipeline de prédiction.
-#
-# Quand l'utiliser :
-#   - Avant conversion ONNX : mesurer le besoin d'optimisation
-#   - Après conversion ONNX : valider le gain de performance
-#   - En production : détecter une dégradation de latence
-#
-# Utilisation :
-#   python optimization/profile_model.py --nb-requetes 500
-#   python optimization/profile_model.py --nb-requetes 500 --format csv
+# optimization/profile_model.py — Comparativa de Performance: Sklearn vs ONNX
 # =============================================================================
 
-# --- Bibliothèques standard ---------------------------------------------------
-import argparse                                   # Arguments CLI
-import cProfile                                   # Profilage fonction par fonction
-import io                                         # Capture sortie cProfile
-import json                                       # Écriture résultats JSON
-import logging                                    # Journalisation
-import pstats                                     # Analyse résultats cProfile
-import sys                                        # Code de sortie, path
-import time                                       # Mesure latence précise
-from   pathlib import Path                        # Chemins multi-OS
+#
+# POSIBILIDADES DE EJECUCIÓN (Comandos UV / Python):
+#
+# 1. COMPARACIÓN ESTÁNDAR (Ambos motores, 500 peticiones):
+#    uv run python optimization/profile_model.py
+#
+# 2. PROBAR SOLO EL "ANTES" (Scikit-Learn Nativo):
+#    uv run python optimization/profile_model.py --moteur sklearn
+#
+# 3. PROBAR SOLO EL "DESPUÉS" (ONNX Optimizado):
+#    uv run python optimization/profile_model.py --moteur onnx
+#
+# 4. ESTRÉS TEST (Aumentar carga para ver estabilidad):
+#    uv run python optimization/profile_model.py --nb-requetes 2000
+#
+# 5. EXPORTAR RESULTADOS A JSON (Para auditoría de MLOps):
+#    uv run python optimization/profile_model.py --format json
+#
+# 6. INVESTIGACIÓN PROFUNDA (Ver las 50 funciones más lentas en el Profiler):
+#    uv run python optimization/profile_model.py --top-fonctions 50
+#
 
-# --- Bibliothèques tierces : données -----------------------------------------
-import numpy  as np                               # Génération données test
-import pandas as pd                               # Export résultats CSV
+import argparse
+import cProfile
+import io
+import json
+import logging
+import pstats
+import sys
+import time
+import joblib
+from pathlib import Path
+import numpy as np
+import pandas as pd
+
+# --- Patch de compatibilité sklearn ------------------------------------------
+# Le modèle .pkl a été entraîné avec sklearn < 1.6 qui utilisait
+# force_all_finite. Sklearn >= 1.6 l'a renommé en ensure_all_finite.
+# Ce patch rétablit la compatibilité sans re-entraîner le modèle.
+try:
+    import sklearn.utils.validation as _skval
+    if not hasattr(_skval, "_check_feature_names"):
+        pass  # version très ancienne, pas de patch nécessaire
+    _orig_check_array = _skval.check_array
+    def _patched_check_array(*args, **kwargs):
+        if "force_all_finite" in kwargs:
+            val = kwargs.pop("force_all_finite")
+            # Convertir l'ancienne valeur vers le nouveau paramètre
+            if val is True:
+                kwargs.setdefault("ensure_all_finite", True)
+            elif val is False:
+                kwargs.setdefault("ensure_all_finite", False)
+            elif val == "allow-nan":
+                kwargs.setdefault("ensure_all_finite", "allow-nan")
+        return _orig_check_array(*args, **kwargs)
+    _skval.check_array = _patched_check_array
+    # Propager le patch aux modules qui importent check_array directement
+    import sklearn.utils._validation as _skval2
+    _skval2.check_array = _patched_check_array
+except Exception:
+    pass  # Si le patch échoue, on laisse l'erreur originale apparaître
 
 # --- Configuration -----------------------------------------------------------
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from config import (
-    FICHIER_MODELE_ONNX,   # Modèle ONNX à benchmarker
-    RACINE_PROJET,          # Dossier racine pour les rapports
-)
+from config import FICHIER_MODELE_ONNX, RACINE_PROJET
 
+# Definimos la ruta del modelo original (Ajusta el nombre si es distinto)
+FICHIER_MODELE_SKLEARN = RACINE_PROJET / "model_artifact" / "best_model_lgbm.pkl"
 
-# Configuration journalisation
-logging.basicConfig(
-    level  = logging.INFO,
-    format = "%(asctime)s | %(levelname)-8s | %(message)s",
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(message)s")
 journal = logging.getLogger(__name__)
 
-# Répertoire de sortie des rapports de profilage
-DOSSIER_RAPPORTS  = RACINE_PROJET / "optimization" / "rapports"
-NB_FEATURES_DEFAUT = 18  # Nombre de features du modèle Home Credit
-
+DOSSIER_RAPPORTS = RACINE_PROJET / "optimization" / "rapports"
+NB_FEATURES_DEFAUT = 232  # Basado en tu nuevo esquema de 20 variables
 
 # =============================================================================
 def analyser_arguments() -> argparse.Namespace:
-    """
-    Analyse les arguments de la ligne de commande.
-
-    Returns:
-        Namespace avec les paramètres de benchmark.
-    """
-    analyseur = argparse.ArgumentParser(
-        description = "Profilage cProfile et benchmark latences du modèle",
-    )
-    analyseur.add_argument(
-        "--nb-requetes",
-        type    = int,
-        default = 500,
-        help    = "Nombre de requêtes de benchmark (défaut : 500)",
-    )
-    analyseur.add_argument(
-        "--nb-features",
-        type    = int,
-        default = NB_FEATURES_DEFAUT,
-        help    = f"Nombre de features du modèle (défaut : {NB_FEATURES_DEFAUT})",
-    )
-    analyseur.add_argument(
-        "--format",
-        choices = ["txt", "csv", "json"],
-        default = "txt",
-        help    = "Format du rapport de sortie",
-    )
-    analyseur.add_argument(
-        "--top-fonctions",
-        type    = int,
-        default = 20,
-        help    = "Nombre de fonctions à afficher dans le rapport cProfile",
-    )
+    analyseur = argparse.ArgumentParser(description="Benchmark & Profiling: Sklearn vs ONNX")
+    analyseur.add_argument("--nb-requetes", type=int, default=500, help="Número de predicciones para el test")
+    analyseur.add_argument("--nb-features", type=int, default=NB_FEATURES_DEFAUT)
+    analyseur.add_argument("--moteur", choices=["sklearn", "onnx", "both"], default="both")
+    analyseur.add_argument("--format", choices=["txt", "csv", "json"], default="txt")
+    analyseur.add_argument("--top-fonctions", type=int, default=15, help="Funciones a mostrar en cProfile")
     return analyseur.parse_args()
 
-
-# ##############################################################################
-# Benchmark ONNX Runtime
-# ##############################################################################
-
 # =============================================================================
-def benchmarker_onnx(
-    nb_requetes : int,
-    nb_features : int,
-) -> dict:
-    """
-    Mesure les latences d'inférence ONNX sur N requêtes consécutives.
+def benchmarker_moteur(moteur_type: str, nb_requetes: int, nb_features: int) -> dict:
+    import joblib
+    import pandas as pd
 
-    Génère des données aléatoires float32 représentant des demandes
-    de crédit et mesure le temps d'inférence individuel pour calculer
-    les percentiles de latence (p50, p95, p99).
-
-    Args:
-        nb_requetes : Nombre de requêtes à effectuer.
-        nb_features : Nombre de features d'entrée du modèle.
-
-    Returns:
-        Dictionnaire avec percentiles de latence et statistiques.
-
-    Raises:
-        FileNotFoundError : Si best_model.onnx est introuvable.
-    """
-    import onnxruntime as ort
-
-    # -- Vérification existence du modèle ------------------------------------
-    if not FICHIER_MODELE_ONNX.exists():
-        raise FileNotFoundError(
-            f"Modèle ONNX introuvable : {FICHIER_MODELE_ONNX}\n"
-            "Exécutez d'abord : python scripts/export_best_model.py"
-        )
-
-    # -- Initialisation de la session ONNX -----------------------------------
-    options                    = ort.SessionOptions()
-    options.log_severity_level = 3  # Silence les logs ONNX verbeux
-    session = ort.InferenceSession(
-        str(FICHIER_MODELE_ONNX),
-        sess_options = options,
-        providers    = ["CPUExecutionProvider"],
-    )
-    nom_entree = session.get_inputs()[0].name
-
-    # -- Génération des données de test aléatoires ---------------------------
     np.random.seed(42)
-    donnees_test = np.random.rand(
-        nb_requetes, nb_features
-    ).astype(np.float32)
+    # Generamos datos aleatorios — El nombre debe ser consistente
+    donnees_test = np.random.rand(nb_requetes, nb_features).astype(np.float32)
+    latences_ms = []
 
-    # -- Phase de warm-up (5 requêtes non comptabilisées) --------------------
-    for i in range(min(5, nb_requetes)):
-        session.run(None, {nom_entree: donnees_test[i:i+1]})
+    if moteur_type == "sklearn":
+        if not FICHIER_MODELE_SKLEARN.exists():
+            raise FileNotFoundError(f"Modelo no encontrado: {FICHIER_MODELE_SKLEARN}")
 
-    # -- Benchmark principal -------------------------------------------------
-    latences_ms = np.zeros(nb_requetes)
+        model = joblib.load(FICHIER_MODELE_SKLEARN)
 
+        def predict_fn(x):
+            try:
+                return model.predict_proba(x)
+            except TypeError:
+                if hasattr(model, 'steps'):
+                    return model.steps[-1][1].predict_proba(x)
+                raise
+        nom_complet = "Scikit-Learn (Antes)"
+    else:
+        import onnxruntime as ort
+        session = ort.InferenceSession(str(FICHIER_MODELE_ONNX), providers=["CPUExecutionProvider"])
+        input_name = session.get_inputs()[0].name
+        def predict_fn(x): return session.run(None, {input_name: x})
+        nom_complet = "ONNX Runtime (Después)"
+
+    # Warm-up — Ahora 'donnees_test' ya existe
+    for i in range(min(10, nb_requetes)):
+        predict_fn(donnees_test[i:i+1])
+
+    # Test real
     for i in range(nb_requetes):
-        debut         = time.perf_counter()
-        session.run(None, {nom_entree: donnees_test[i:i+1]})
-        fin           = time.perf_counter()
-        latences_ms[i] = (fin - debut) * 1000
+        debut = time.perf_counter()
+        predict_fn(donnees_test[i:i+1])
+        latences_ms.append((time.perf_counter() - debut) * 1000)
 
     return {
-        "moteur"      : "ONNX Runtime",
-        "nb_requetes" : nb_requetes,
-        "latence_min" : float(np.min(latences_ms)),
-        "latence_p50" : float(np.percentile(latences_ms, 50)),
-        "latence_p75" : float(np.percentile(latences_ms, 75)),
-        "latence_p95" : float(np.percentile(latences_ms, 95)),
-        "latence_p99" : float(np.percentile(latences_ms, 99)),
-        "latence_max" : float(np.max(latences_ms)),
-        "latence_moy" : float(np.mean(latences_ms)),
-        "latences_raw": latences_ms.tolist(),
+        "moteur": nom_complet,
+        "moteur_code": moteur_type,
+        "latence_p50": float(np.percentile(latences_ms, 50)),
+        "latence_p95": float(np.percentile(latences_ms, 95)),
+        "latence_moy": float(np.mean(latences_ms)),
+        "latences_raw": latences_ms
     }
 
+# =============================================================================
+def profiler_moteur(moteur_type: str, nb_requetes: int, nb_features: int, top_n: int) -> str:
+    """Ejecuta cProfile para detectar cuellos de botella internos."""
+    donnees_test = np.random.rand(nb_requetes, nb_features).astype(np.float32)
 
-# ##############################################################################
-# Profilage cProfile
-# ##############################################################################
+    if moteur_type == "sklearn":
+        model = joblib.load(FICHIER_MODELE_SKLEARN)
+        def target(): [model.predict_proba(donnees_test[i:i+1]) for i in range(nb_requetes)]
+    else:
+        import onnxruntime as ort
+        session = ort.InferenceSession(str(FICHIER_MODELE_ONNX), providers=["CPUExecutionProvider"])
+        input_name = session.get_inputs()[0].name
+        def target(): [session.run(None, {input_name: donnees_test[i:i+1]}) for i in range(nb_requetes)]
+
+    prof = cProfile.Profile()
+    prof.enable()
+    target()
+    prof.disable()
+
+    s = io.StringIO()
+    ps = pstats.Stats(prof, stream=s).sort_stats("cumulative")
+    ps.print_stats(top_n)
+    return s.getvalue()
 
 # =============================================================================
-def profiler_onnx(
-    nb_requetes : int,
-    nb_features : int,
-    top_n       : int,
-) -> str:
-    """
-    Profile l'inférence ONNX avec cProfile et retourne le rapport texte.
-
-    Identifie les fonctions Python les plus coûteuses lors de l'inférence.
-    Utile pour détecter des goulots d'étranglement inattendus (ex: encodage
-    des données, appels système, conversions numpy…).
-
-    Args:
-        nb_requetes : Nombre d'inférences à profiler.
-        nb_features : Nombre de features d'entrée.
-        top_n       : Nombre de fonctions à inclure dans le rapport.
-
-    Returns:
-        Rapport cProfile formaté en texte.
-    """
-    import onnxruntime as ort
-
-    session = ort.InferenceSession(
-        str(FICHIER_MODELE_ONNX),
-        providers = ["CPUExecutionProvider"],
-    )
-    nom_entree   = session.get_inputs()[0].name
-    donnees_test = np.random.rand(
-        nb_requetes, nb_features
-    ).astype(np.float32)
-
-    # -- Fonction cible du profilage -----------------------------------------
-    def executer_inferences():
-        for i in range(nb_requetes):
-            session.run(None, {nom_entree: donnees_test[i:i+1]})
-
-    # -- Profilage avec cProfile ---------------------------------------------
-    profileur     = cProfile.Profile()
-    profileur.enable()
-    executer_inferences()
-    profileur.disable()
-
-    # -- Extraction et formatage du rapport ----------------------------------
-    tampon        = io.StringIO()
-    statistiques  = pstats.Stats(profileur, stream=tampon)
-    statistiques.sort_stats("cumulative")
-    statistiques.print_stats(top_n)
-
-    return tampon.getvalue()
-
-
-# ##############################################################################
-# Affichage et export des résultats
-# ##############################################################################
-
-# =============================================================================
-def afficher_resultats(metriques: dict) -> None:
-    """
-    Affiche les résultats du benchmark dans la console.
-
-    Args:
-        metriques : Dictionnaire de métriques calculées par benchmarker_onnx.
-    """
-    print("\n============================================================================")
-    print("RAPPORT DE BENCHMARK — INFÉRENCE ONNX RUNTIME")
-    print("============================================================================")
-    print(f"  Moteur d'inférence......: {metriques['moteur']}")
-    print(f"  Nombre de requêtes......: {metriques['nb_requetes']:,}")
-    print("----------------------------------------------------------------------------")
-    print(f"  Latence minimum.........: {metriques['latence_min']:.3f} ms")
-    print(f"  Latence p50 (médiane)...: {metriques['latence_p50']:.3f} ms")
-    print(f"  Latence p75.............: {metriques['latence_p75']:.3f} ms")
-    print(f"  Latence p95.............: {metriques['latence_p95']:.3f} ms")
-    print(f"  Latence p99.............: {metriques['latence_p99']:.3f} ms")
-    print(f"  Latence maximum.........: {metriques['latence_max']:.3f} ms")
-    print(f"  Latence moyenne.........: {metriques['latence_moy']:.3f} ms")
-    print("============================================================================")
-
-
-# =============================================================================
-def exporter_resultats(
-    metriques  : dict,
-    rapport_profil : str,
-    format_sortie  : str,
-) -> None:
-    """
-    Exporte les résultats dans le format demandé.
-
-    Args:
-        metriques      : Métriques de benchmark calculées.
-        rapport_profil : Rapport texte cProfile.
-        format_sortie  : "txt" | "csv" | "json"
-    """
+def exporter_resultats(metriques: dict, rapport_profil: str, format_ext: str):
     DOSSIER_RAPPORTS.mkdir(parents=True, exist_ok=True)
+    slug = metriques['moteur_code']
 
-    # -- Export selon le format demandé -------------------------------------
-    if format_sortie == "json":
-        chemin = DOSSIER_RAPPORTS / "benchmark_onnx.json"
-        export = {k: v for k, v in metriques.items() if k != "latences_raw"}
-        with open(chemin, "w", encoding="utf-8") as f:
-            json.dump(export, f, indent=2, ensure_ascii=False)
-        print(f"  Résultats JSON exportés.: {chemin}")
+    # Exportar métricas
+    if format_ext == "json":
+        with open(DOSSIER_RAPPORTS / f"bench_{slug}.json", "w") as f:
+            json.dump({k:v for k,v in metriques.items() if k != "latences_raw"}, f, indent=2)
 
-    elif format_sortie == "csv":
-        chemin = DOSSIER_RAPPORTS / "benchmark_onnx_latences.csv"
-        df = pd.DataFrame({
-            "requete_num" : range(len(metriques["latences_raw"])),
-            "latence_ms"  : metriques["latences_raw"],
-        })
-        df.to_csv(chemin, index=False)
-        print(f"  Latences CSV exportées..: {chemin}")
-
-    # -- Export du rapport cProfile toujours en TXT -------------------------
-    chemin_profil = DOSSIER_RAPPORTS / "cprofile_onnx.txt"
-    with open(chemin_profil, "w", encoding="utf-8") as f:
+    # Exportar perfilado siempre en TXT
+    with open(DOSSIER_RAPPORTS / f"profiling_{slug}.txt", "w") as f:
         f.write(rapport_profil)
-    print(f"  Rapport cProfile exporté: {chemin_profil}")
-
-
-# ##############################################################################
-# Point d'entrée principal
-# ##############################################################################
 
 # =============================================================================
-def main() -> None:
-    """
-    Orchestration principale du profilage de performance.
-
-    Étapes :
-        1. Benchmark ONNX Runtime sur N requêtes
-        2. Profilage cProfile de l'inférence
-        3. Affichage des résultats dans la console
-        4. Export dans le format demandé
-    """
+def main():
     args = analyser_arguments()
+    moteurs_a_tester = ["sklearn", "onnx"] if args.moteur == "both" else [args.moteur]
+    resultats = []
 
-    print("\n============================================================================")
-    print("PROFILAGE DE PERFORMANCE — MODÈLE SCORING CRÉDIT")
-    print("============================================================================")
-    print(f"  Nombre de requêtes......: {args.nb_requetes:,}")
-    print(f"  Nombre de features......: {args.nb_features}")
-    print(f"  Format de sortie........: {args.format}")
+    print("\n" + "="*70)
+    print(f"📊 BENCHMARK COMPARATIVO: SKLEARN vs ONNX ({args.nb_requetes} req)")
+    print("="*70)
 
-    # -- Benchmark latences ONNX --------------------------------------------
-    print("\n  Benchmark ONNX en cours...")
-    try:
-        metriques = benchmarker_onnx(args.nb_requetes, args.nb_features)
-    except FileNotFoundError as erreur:
-        print(f"\n  ERREUR : {erreur}", file=sys.stderr)
-        sys.exit(1)
+    for m in moteurs_a_tester:
+        print(f"\n🔍 Analizando motor: {m.upper()}...")
+        try:
+            res = benchmarker_moteur(m, args.nb_requetes, args.nb_features)
+            prof_res = profiler_moteur(m, args.nb_requetes, args.nb_features, args.top_fonctions)
 
-    afficher_resultats(metriques)
+            # Mostrar resultados rápidos
+            print(f"   > p50: {res['latence_p50']:.3f} ms | p95: {res['latence_p95']:.3f} ms")
 
-    # -- Profilage cProfile -------------------------------------------------
-    print("\n  Profilage cProfile en cours...")
-    rapport_profil = profiler_onnx(
-        args.nb_requetes,
-        args.nb_features,
-        args.top_fonctions,
-    )
-    print("\n  Top fonctions par temps cumulé (cProfile) :")
-    print(rapport_profil[:2000])  # Aperçu tronqué dans la console
+            exporter_resultats(res, prof_res, args.format)
+            resultats.append(res)
+        except Exception as e:
+            print(f"   ❌ Error: {e}")
 
-    # -- Export des résultats -----------------------------------------------
-    exporter_resultats(metriques, rapport_profil, args.format)
+    # Tabla Final
+    if len(resultats) > 1:
+        print("\n" + "RESUMEN FINAL".center(70, "-"))
+        gain = resultats[0]['latence_p50'] / resultats[1]['latence_p50']
+        for r in resultats:
+            print(f"   {r['moteur']:<25} | p50: {r['latence_p50']:>6.3f} ms")
+        print("-" * 70)
+        print(f"🚀 MEJORA DE VELOCIDAD: x{gain:.2f} veces más rápido con ONNX")
+        print("=" * 70 + "\n")
 
-    print("============================================================================")
-    print("PROFILAGE TERMINÉ")
-    print("============================================================================\n")
-
-
-# =============================================================================
 if __name__ == "__main__":
     main()

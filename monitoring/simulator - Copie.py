@@ -1,5 +1,5 @@
 # =============================================================================
-# monitoring/simulator.py — Version Francisée (20 Variables)
+# monitoring/simulator.py — Versión Actualizada (20 Features)
 # =============================================================================
 
 import streamlit as st
@@ -7,66 +7,66 @@ import requests
 import pandas as pd
 import plotly.express as px
 
-# --- Configuration de l'URL de l'API ---
+# --- Configuration de l'URL API ---
 URL_API = "http://localhost:8001/predict"
 
 def main():
     st.set_page_config(page_title="Simulateur de Crédit Pro", layout="wide")
 
-    st.title("🏦 Simulateur de Score Crédit (Modèle 20 Variables)")
-    st.markdown("Saisissez les données du client pour obtenir la probabilité de défaut et les explications SHAP.")
+    st.title("🏦 Simulateur de Score Crédit (Modèle 20 Features)")
+    st.markdown("Saisissez los datos del cliente para obtener la probabilidad de default y explicaciones SHAP.")
 
-    # --- FORMULAIRE D'ENTRÉE (Ajusté à ClientDataInput) ---
+    # --- FORMULAIRE D'ENTRÉE (Ajustado a ClientDataInput) ---
     with st.sidebar:
-        st.header("📋 Informations Client")
+        st.header("📋 Información del Cliente")
         with st.form("credit_form"):
 
-            st.subheader("⭐ Variables Critiques (Scores)")
-            ext_1 = st.slider("SCORE EXTERNE 1", 0.01, 0.96, 0.5)
-            ext_2 = st.slider("SCORE EXTERNE 2", 0.0, 0.85, 0.5)
-            ext_3 = st.slider("SCORE EXTERNE 3", 0.0, 0.90, 0.5)
+            st.subheader("⭐ Variables Críticas (Scores)")
+            ext_1 = st.slider("EXT_SOURCE_1", 0.01, 0.96, 0.5)
+            ext_2 = st.slider("EXT_SOURCE_2", 0.0, 0.85, 0.5)
+            ext_3 = st.slider("EXT_SOURCE_3", 0.0, 0.90, 0.5)
 
             st.divider()
 
-            st.subheader("💰 Données Financières")
-            amt_credit = st.number_input("Montant du Crédit (€)", 45000.0, 2000000.0, 500000.0)
+            st.subheader("💰 Datos Financieros")
+            amt_credit = st.number_input("Montant Crédit (€)", 45000.0, 2000000.0, 500000.0)
             amt_annuity = st.number_input("Annuité (€)", 1600.0, 100000.0, 25000.0)
             goods_price = st.number_input("Prix du Bien (€)", 40000.0, 2000000.0, 450000.0)
 
             st.divider()
 
-            st.subheader("📊 Historique et Comportement")
+            st.subheader("📊 Historial y Comportamiento")
             pay_ratio = st.slider("Ratio de Paiement", 0.0, 1.0, 0.1)
             pay_delay = st.number_input("Délai Moyen (jours)", 0.0, 100.0, 2.0)
-            max_dpd = st.number_input("Jours de Retard Max (DPD)", 0.0, 365.0, 0.0)
+            max_dpd = st.number_input("Max Days Past Due", 0.0, 365.0, 0.0)
 
             st.divider()
 
-            st.subheader("👤 Profil Démographique")
+            st.subheader("👤 Perfil Demográfico")
             age = st.number_input("Âge", 18, 70, 35)
-            years_emp = st.number_input("Années d'ancienneté", 0, 50, 10)
+            years_emp = st.number_input("Années d'emploi", 0, 50, 10)
             gender = st.selectbox("Genre", ["F", "M", "XNA"])
-            education = st.selectbox("Niveau d'Études", [
+            education = st.selectbox("Éducation", [
                 "Secondary / secondary special", "Higher education",
                 "Incomplete higher", "Lower secondary", "Academic degree"
             ])
 
             st.divider()
 
-            st.subheader("📁 Autres Données (Bureau)")
+            st.subheader("📁 Otros Datos de Buró")
             b_credit = st.number_input("Total Crédits Bureau", value=5.0)
             b_debt = st.number_input("Dette Moyenne Bureau", value=1000.0)
-            pos_m = st.number_input("Moyenne mois POS", value=12.0)
-            cc_draw = st.number_input("Retraits CB moyens", value=0.0)
-            cc_bal = st.number_input("Solde CB moyen", value=0.0)
-            phone_ch = st.number_input("Jours depuis changement tél.", value=365.0)
+            pos_m = st.number_input("Mois POS moyen", value=12.0)
+            cc_draw = st.number_input("Retraits CC moyen", value=0.0)
+            cc_bal = st.number_input("Solde CC moyen", value=0.0)
+            phone_ch = st.number_input("Jours changement phone", value=365.0)
             region = st.selectbox("Note Région", [1, 2, 3], index=1)
 
             submit = st.form_submit_button("🚀 Analyser le Dossier")
 
-    # --- APPEL À L'API ---
+    # --- APPEL API ---
     if submit:
-        # Construction du payload exact pour ClientDataInput
+        # Construimos el payload exacto para ClientDataInput
         payload = {
             "ext_source_1": ext_1, "ext_source_2": ext_2, "ext_source_3": ext_3,
             "paymnt_ratio_mean": pay_ratio, "paymnt_delay_mean": pay_delay,
@@ -90,11 +90,11 @@ def main():
             with col1:
                 st.subheader("Décision")
                 prob = resultat["probabilite_defaut"]
-                score_sante = (1 - prob) * 100
+                score_percent = (1 - prob) * 100
 
-                st.metric("Indice de Confiance", f"{score_sante:.1f}%")
+                st.metric("Confianza (Salud)", f"{score_percent:.1f}%")
 
-                if resultat["decision"].upper() in ["ACCORD", "ACCORDÉ", "APPROVE", "APPROUVÉ"]:
+                if resultat["decision"].upper() in ["ACCORD", "ACCORDÉ", "APPROVE"]:
                     st.success(f"✅ {resultat['decision']}")
                 else:
                     st.error(f"❌ {resultat['decision']}")
@@ -102,13 +102,13 @@ def main():
                 st.caption(f"Probabilité de défaut : {prob:.4f}")
 
             with col2:
-                st.subheader("💡 Explication SHAP (Influences Majeures)")
-                explications = resultat.get("explication_shap", [])
+                st.subheader("💡 Explication SHAP (Top Influences)")
+                explicaciones = resultat.get("explication_shap", [])
 
-                if explications:
-                    df_shap = pd.DataFrame(explications)
+                if explicaciones:
+                    df_shap = pd.DataFrame(explicaciones)
 
-                    # Graphique de barres horizontales
+                    # Gráfico de barras horizontales
                     fig = px.bar(
                         df_shap,
                         x="impact_shap",
@@ -116,20 +116,20 @@ def main():
                         orientation='h',
                         color="direction",
                         color_discrete_map={
-                            "hausse_risque": "#e74c3c", # Rouge
-                            "baisse_risque": "#2ecc71"  # Vert
+                            "hausse_risque": "#e74c3c", # Rojo
+                            "baisse_risque": "#2ecc71"  # Verde
                         },
                         hover_data=["valeur_client"],
-                        title="Impact sur le Score Final"
+                        title="Impacto en el Score Final"
                     )
-                    # On inverse l'axe Y pour que la feature la plus importante soit en haut
+                    # Invertimos el eje Y para que la más importante esté arriba
                     fig.update_layout(yaxis={'categoryorder':'total ascending'})
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.warning("Aucune explication reçue.")
 
         except Exception as e:
-            st.error(f"Erreur lors de l'appel API : {e}")
+            st.error(f"Erreur : {e}")
 
 if __name__ == "__main__":
     main()

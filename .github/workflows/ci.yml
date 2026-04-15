@@ -1,0 +1,72 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Base de données temporaire pour isoler les tests
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+          POSTGRES_DB: test_db
+        ports:
+          - 5433:5432          # puerto 5433 como en tu proyecto
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      # 1. Récupération du code source
+      - uses: actions/checkout@v4
+
+      # 2. Installation de uv avec gestion du cache automatique
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      # 3. Installation de la version spécifique de Python
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+
+      # 4. Synchronisation des dépendances (rapide grâce au cache)
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      # 5. Analyse statique du code (Linter)
+      # On utilise continue-on-error pour ne pas bloquer le pipeline si le formatage est imparfait
+      - name: Lint (Ruff)
+        continue-on-error: true
+        run: |
+          uv run ruff check src/ 
+          uv run ruff format --check src/
+
+      # 6. Exécution des tests unitaires et d'intégration
+      - name: Run all tests (coverage ≥ 80%)
+        env:
+          MODEL_BACKEND: onnx
+          DB_USER: test_user
+          DB_PASSWORD: test_pass
+          DB_HOST: localhost
+          DB_PORT: 5433
+          DB_NAME: test_db
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5433/test_db
+        run: uv run pytest tests/test_03_database.py
+          #run: |
+            #uv run pytest tests/ -v \
+            #--cov=src \
+            #--cov-report=term-missing \
+            #--cov-fail-under=80

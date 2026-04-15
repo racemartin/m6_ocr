@@ -1,0 +1,58 @@
+         633502 function calls (580502 primitive calls) in 3.964 seconds
+
+   Ordered by: cumulative time
+   List reduced from 148 to 50 due to restriction <50>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.009    0.009    3.963    3.963 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\optimization\profile_model.py:147(target)
+      500    0.057    0.000    3.954    0.008 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\sklearn.py:1339(predict_proba)
+      500    0.085    0.000    3.813    0.008 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\sklearn.py:992(predict)
+      500    0.009    0.000    1.786    0.004 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\basic.py:4682(predict)
+      500    0.014    0.000    1.345    0.003 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\basic.py:1081(predict)
+      500    0.006    0.000    1.318    0.003 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\basic.py:1310(__pred_for_np2d)
+      500    1.225    0.002    1.312    0.003 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\basic.py:1266(__inner_predict_np2d)
+      500    0.020    0.000    0.974    0.002 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\sklearn.py:717(_process_params)
+54500/1500    0.382    0.000    0.765    0.001 C:\Users\Rafael CEREZO MARTIN\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\copy.py:118(deepcopy)
+     1500    0.121    0.000    0.721    0.000 C:\Users\Rafael CEREZO MARTIN\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\copy.py:217(_deepcopy_dict)
+      500    0.006    0.000    0.659    0.001 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\sklearn.py:679(get_params)
+      500    0.043    0.000    0.650    0.001 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\sklearn\base.py:240(get_params)
+      500    0.069    0.000    0.584    0.001 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\sklearn\base.py:209(_get_param_names)
+     1000    0.023    0.000    0.551    0.001 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\basic.py:630(_choose_param_value)
+      500    0.003    0.000    0.482    0.001 C:\Users\Rafael CEREZO MARTIN\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\inspect.py:3346(signature)
+      500    0.003    0.000    0.479    0.001 C:\Users\Rafael CEREZO MARTIN\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\inspect.py:3081(from_callable)
+      500    0.027    0.000    0.476    0.001 C:\Users\Rafael CEREZO MARTIN\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\inspect.py:2501(_signature_from_callable)
+      500    0.131    0.000    0.437    0.001 C:\Users\Rafael CEREZO MARTIN\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\inspect.py:2397(_signature_from_function)
+      500    0.003    0.000    0.294    0.001 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\sklearn.py:803(_process_n_jobs)
+      500    0.003    0.000    0.289    0.001 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\compat.py:267(_LGBMCpuCount)
+      500    0.003    0.000    0.287    0.001 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\joblib\parallel.py:624(cpu_count)
+      500    0.006    0.000    0.284    0.001 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\joblib\externals\loky\backend\context.py:83(cpu_count)
+      500    0.014    0.000    0.265    0.001 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\joblib\externals\loky\backend\context.py:220(_cpu_count_user)
+    10500    0.109    0.000    0.204    0.000 C:\Users\Rafael CEREZO MARTIN\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\inspect.py:2743(__init__)
+      500    0.009    0.000    0.190    0.000 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\optimization\profile_model.py:49(_patched_check_array)
+      500    0.019    0.000    0.183    0.000 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\basic.py:1008(from_booster)
+      500    0.165    0.000    0.180    0.000 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\basic.py:617(get_by_alias)
+      500    0.036    0.000    0.179    0.000 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\sklearn\utils\validation.py:725(check_array)
+      500    0.010    0.000    0.161    0.000 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\basic.py:973(__init__)
+      500    0.086    0.000    0.150    0.000 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\basic.py:526(_param_dict_to_str)
+   122000    0.148    0.000    0.148    0.000 {method 'get' of 'dict' objects}
+      500    0.009    0.000    0.144    0.000 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\joblib\externals\loky\backend\context.py:184(_cpu_count_affinity)
+     1000    0.007    0.000    0.091    0.000 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\psutil\_pswindows.py:663(wrapper)
+      500    0.004    0.000    0.087    0.000 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\joblib\externals\loky\backend\context.py:148(_cpu_count_cgroup)
+    54500    0.069    0.000    0.086    0.000 {built-in method builtins.isinstance}
+    59500    0.085    0.000    0.085    0.000 {built-in method builtins.id}
+     1000    0.083    0.000    0.083    0.000 {built-in method nt._path_exists}
+      500    0.002    0.000    0.068    0.000 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\psutil\__init__.py:313(__init__)
+      500    0.014    0.000    0.066    0.000 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\psutil\__init__.py:316(_init)
+      500    0.029    0.000    0.066    0.000 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\numpy\_core\shape_base.py:220(vstack)
+      500    0.005    0.000    0.063    0.000 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\psutil\__init__.py:882(cpu_affinity)
+      500    0.034    0.000    0.062    0.000 C:\Users\Rafael CEREZO MARTIN\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\inspect.py:3029(__init__)
+      500    0.004    0.000    0.052    0.000 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\psutil\_pswindows.py:1048(cpu_affinity_get)
+    10500    0.033    0.000    0.051    0.000 C:\Users\Rafael CEREZO MARTIN\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\enum.py:720(__call__)
+      500    0.017    0.000    0.041    0.000 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\basic.py:730(_c_float_array)
+      500    0.003    0.000    0.040    0.000 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\psutil\__init__.py:363(_get_ident)
+      500    0.008    0.000    0.037    0.000 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\sklearn\utils\_array_api.py:857(_asarray_with_order)
+      500    0.026    0.000    0.035    0.000 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\numpy\_core\shape_base.py:80(atleast_2d)
+    53000    0.033    0.000    0.033    0.000 C:\Users\Rafael CEREZO MARTIN\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\copy.py:172(_deepcopy_atomic)
+      500    0.014    0.000    0.033    0.000 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\sklearn\utils\validation.py:371(_num_samples)
+
+
