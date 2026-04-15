@@ -36,6 +36,9 @@ jobs:
           
           # App que arranca la aPI y la interface simulator para la inferencia 
           cp app.py               hf-deploy/app.py
+          
+          # ✅ README con configuración del Space
+          cp README.md            hf-deploy/README.md
 
       - name: Push to Hugging Face Space
         env:
