@@ -38,6 +38,9 @@ class Paramètres(BaseSettings):
     # Esta es la forma oficial y única necesaria en Pydantic V2:
     model_config = ConfigDict(protected_namespaces=('settings_',))
 
+
+    model_config = {'protected_namespaces': ('settings_',)}
+
     # -- Sélection du backend de scoring --------------------------------------
     model_backend: str = "onnx"  # "onnx" | "mlflow" — voir dependencies.py
 
