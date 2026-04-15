@@ -112,11 +112,15 @@ models/*.pt
 *.pkl
 *.h5
 *.pt
-# *.onnx
+*.onnx
 *.tflite
 *.bin
 *.pyd
 *.so
+
+model_artifact/best_model.onnx
+.xet/
+.xetattributes
 
 # Checkpoints et sauvegardes
 checkpoints/
