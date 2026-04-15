@@ -1,3 +1,15 @@
+---
+title: Pret a depenser App
+emoji: 🚀
+colorFrom: blue
+colorTo: green
+sdk: streamlit
+sdk_version: 5.15.0
+app_file: app.py
+pinned: false
+license: mit
+---
+
 Initiez-vous au MLOps (partie 1/2) MLflow Gestion du cycle de vie des modèles
 ==============================
 
