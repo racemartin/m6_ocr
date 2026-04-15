@@ -24,6 +24,7 @@ from src.api.ports.i_prediction_logger import IJournaliseurPredictions
 
 # --- Configuration globale ---------------------------------------------------
 from config import parametres  # MODEL_BACKEND et paramètres associés
+import sys
 import os
 import inspect
 from src.tools.rafael.log_tool import LogTool
@@ -33,6 +34,7 @@ journalapp  = logging.getLogger(__name__)
 log         = LogTool(origin="UseCase")
 NOM_FICHIER = os.path.basename(__file__)
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 # =============================================================================
 # INSTANCES PARTAGÉES (pattern module-level singleton)
 # Créées une seule fois au démarrage via le lifespan FastAPI.

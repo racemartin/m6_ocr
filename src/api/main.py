@@ -28,12 +28,15 @@ from src.api.dependencies import initialiser_adaptateurs  # Warm-up modèle
 
 # --- Configuration -----------------------------------------------------------
 from config import parametres                         # Titre, version, seuil
+
+import sys
 import os
 import inspect
 from src.tools.rafael.log_tool import LogTool
 log = LogTool(origin="UseCase")
 NOM_FICHIER = os.path.basename(__file__)
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # =============================================================================
 # Configuration globale de la journalisation
