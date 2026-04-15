@@ -1,0 +1,30 @@
+# API
+fastapi==0.115.0
+uvicorn==0.30.6
+pydantic==2.8.2
+pydantic-settings==2.4.0
+python-multipart==0.0.6
+
+# ONNX
+onnx>=1.16.0
+onnxruntime>=1.19.0
+onnxmltools>=1.11.0
+numpy==1.26.4
+skl2onnx>=1.18.0
+
+# ML
+scikit-learn==1.8.0
+lightgbm==4.5.0
+joblib==1.4.2
+pandas==2.2.2
+shap>=0.46.0
+
+# Monitoring
+evidently==0.4.33
+
+# UI
+streamlit==1.38.0
+plotly==5.24.1
+
+# Utils
+python-dotenv>=0.5.1
