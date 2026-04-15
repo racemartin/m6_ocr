@@ -40,6 +40,8 @@ jobs:
           # ✅ README con configuración del Space
           cp README.md            hf-deploy/README.md
 
+          cp config.py            hf-deploy/config.py   
+
       - name: Push to Hugging Face Space
         env:
           HF_TOKEN: ${{ secrets.TOKEN_HUGGINGFACE_CI_CD_DEPLOY }}
