@@ -96,7 +96,7 @@ def analyser_arguments() -> argparse.Namespace:
 
 
 # =============================================================================
-def charger_pipeline(run_id: str, chemin_modele: str):
+def charger_pipeline_V1(run_id: str, chemin_modele: str):
     """
     Charge le pipeline sklearn depuis MLflow ou le système de fichiers.
 
@@ -268,6 +268,57 @@ def benchmarker(pipeline, session, nb_features, n_runs):
         "speedup": latence_sk / latence_onnx
     }
 
+def charger_pipeline(run_id: str, chemin_modele: str):
+    """Carga el clasificador y lo combina con el preprocesador guardado."""
+    from sklearn.pipeline import Pipeline as SklearnPipeline
+
+    # -- Cargar el clasificador (desde MLflow o fichero) --------------------
+    if run_id:
+        journal.info("Chargement classificateur MLflow : runs:/%s/model", run_id)
+        import mlflow.sklearn
+        clasificador = mlflow.sklearn.load_model(f"runs:/{run_id}/model")
+    elif chemin_modele:
+        clasificador = joblib.load(Path(chemin_modele))
+    else:
+        raise FileNotFoundError("Especifica --run-id o --modele-path")
+
+    # -- Si ya es un Pipeline completo, devolverlo directamente -------------
+    if hasattr(clasificador, "steps"):
+        journal.info("Pipeline completo detectado — uso directo.")
+        return clasificador
+
+    # -- Si es solo un clasificador, combinarlo con el preprocesador --------
+    journal.warning(
+        "Clasificador puro detectado (%s) — combinando con preprocessor.pkl",
+        type(clasificador).__name__,
+    )
+    chemin_preproc = DOSSIER_ARTEFACT / "preprocessor.pkl"
+    if not chemin_preproc.exists():
+        raise FileNotFoundError(
+            f"preprocessor.pkl no encontrado en {chemin_preproc}\n"
+            "Ejecuta primero: python scripts/export_best_model_shap.py"
+        )
+    preprocesseur = joblib.load(chemin_preproc)
+    n_out = len(preprocesseur.get_feature_names_out())
+    n_in_modelo = getattr(clasificador, "n_features_in_", "?")
+    print(f"  Preprocesador produce...: {n_out} features")
+    print(f"  Clasificador espera.....: {n_in_modelo} features")
+
+    # ⚠️  Validación crítica: deben coincidir
+    if isinstance(n_in_modelo, int) and n_out != n_in_modelo:
+        raise RuntimeError(
+            f"DESAJUSTE: el preprocesador produce {n_out} features "
+            f"pero el clasificador fue entrenado con {n_in_modelo}.\n"
+            "Solución: re-entrenar el modelo con el preprocesador actual "
+            "o usar el preprocesador de la versión de entrenamiento."
+        )
+
+    pipeline = SklearnPipeline([
+        ("preprocesseur", preprocesseur),
+        ("classificateur", clasificador),
+    ])
+    return pipeline
+
 # ##############################################################################
 # Point d'entrée principal
 # ##############################################################################
@@ -298,15 +349,24 @@ def main() -> None:
         sys.exit(1)
 
     # -- Détection du nombre de features ------------------------------------
+    # ✅ DESPUÉS — lee las features de SALIDA del preprocesador (233 columnas encodadas)
+    # -- Détection du nombre de features ------------------------------------
     try:
-        nb_features = pipeline.n_features_in_
-    except AttributeError:
-        nb_features = NB_FEATURES_DEFAUT
-        journal.warning(
-            "n_features_in_ non disponible — utilisation de %d features.",
-            nb_features,
-        )
+        preprocesseur = pipeline.steps[0][1]
+        noms_out      = list(preprocesseur.get_feature_names_out())
+        nb_features   = len(noms_out)
+        print(f"  Features entrée pipeline: {pipeline.n_features_in_}")
+        print(f"  Features sortie preproc.: {nb_features}")
+        print(f"  Dernière colonne........: {noms_out[-1]}")
+    except Exception as e:
+        journal.warning("get_feature_names_out() indisponible (%s)", e)
+        try:
+            nb_features = pipeline.n_features_in_
+        except AttributeError:
+            nb_features = NB_FEATURES_DEFAUT
+            journal.warning("n_features_in_ indisponible — utilisation de %d", nb_features)
 
+    
     print(f"  Pipeline chargé.........: {type(pipeline).__name__}")
     print(f"  Nombre de features......: {nb_features}")
 

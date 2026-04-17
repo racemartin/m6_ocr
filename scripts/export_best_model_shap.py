@@ -149,7 +149,7 @@ def exporter_pipeline_complet_V1(run_id: str) -> object:
 
     return pipeline
 
-def exporter_pipeline_complet(run_id: str) -> object:
+def exporter_pipeline_complet_V1(run_id: str) -> object:
     import mlflow.sklearn
     journal.info("Chargement du Pipeline depuis MLflow : runs:/%s/model", run_id)
     pipeline = mlflow.sklearn.load_model(f"runs:/{run_id}/model")
@@ -190,6 +190,69 @@ def exporter_pipeline_complet(run_id: str) -> object:
     
     return pipeline    
 
+def exporter_pipeline_complet(run_id: str) -> object:
+    import mlflow.sklearn
+    import pandas as pd
+    import numpy as np
+
+    journal.info("Chargement du Pipeline depuis MLflow : runs:/%s/model", run_id)
+    pipeline = mlflow.sklearn.load_model(f"runs:/{run_id}/model")
+
+    # 1. Guardar el pipeline completo para SHAP
+    chemin_lgbm = DOSSIER_ARTEFACT / "best_model_lgbm.pkl"
+    joblib.dump(pipeline, chemin_lgbm, compress=3)
+    print(f"  Pipeline LightGBM.......: {chemin_lgbm}")
+
+    # 2. Extraer el preprocesador
+    preprocesseur = None
+    if hasattr(pipeline, "steps") and len(pipeline.steps) >= 2:
+        preprocesseur = pipeline.steps[0][1]
+
+    if preprocesseur is None or not hasattr(preprocesseur, "transform"):
+        journal.warning("Préprocesseur non trouvé dans le Pipeline MLflow. Tentative locale...")
+        candidatos = [
+            RACINE_PROJET / "models" / "preprocessor" / "preprocessor.pkl",
+            RACINE_PROJET / "models" / "preprocessor.pkl",
+            RACINE_PROJET / "data" / "models" / "preprocessor.pkl",
+        ]
+        for ruta in candidatos:
+            if ruta.exists():
+                preprocesseur = joblib.load(ruta)
+                journal.info("Préprocesseur chargé depuis : %s", ruta)
+                break
+
+    if preprocesseur is None:
+        raise RuntimeError("Impossible d'extraire un objet avec .transform()")
+
+    # =========================================================
+    # ✅ DIAGNÓSTICO: verificar nº de features del preprocesador
+    #    ANTES de guardar — para que convert_onnx.py use el valor correcto
+    # =========================================================
+    try:
+        noms_out    = list(preprocesseur.get_feature_names_out())
+        nb_features = len(noms_out)
+        print(f"  Features preprocesador..: {nb_features}")
+        print(f"  Última columna..........: {noms_out[-1]}")
+        print(f"  Columna 232 (idx 231)...: {noms_out[231] if nb_features > 231 else 'N/A'}")
+        print(f"  Columna 233 (idx 232)...: {noms_out[232] if nb_features > 232 else 'N/A'}")
+
+        # Guardar el nº de features en un fichero auxiliar para convert_onnx.py
+        import json
+        chemin_dims = DOSSIER_ARTEFACT / "model_input_dims.json"
+        with open(chemin_dims, "w") as f:
+            json.dump({"n_features_in": nb_features, "feature_names": noms_out}, f, indent=2)
+        print(f"  Dimensiones guardadas...: {chemin_dims}")
+
+    except Exception as e:
+        journal.warning("Impossible de vérifier les features : %s", e)
+    # =========================================================
+
+    chemin_preproc = DOSSIER_ARTEFACT / "preprocessor.pkl"
+    joblib.dump(preprocesseur, chemin_preproc, compress=3)
+    print(f"  Preprocesseur seul......: {chemin_preproc}")
+
+    return pipeline
+    
 # =============================================================================
 def exporter_donnees_reference(
     chemin_source : str,

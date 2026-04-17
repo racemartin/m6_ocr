@@ -90,8 +90,10 @@ def analyser_arguments() -> argparse.Namespace:
 # =============================================================================
 def benchmarker_moteur(moteur_type: str, nb_requetes: int, nb_features: int) -> dict:
     import joblib
+    import pandas as pd
 
     np.random.seed(42)
+    # Generamos datos aleatorios — El nombre debe ser consistente
     donnees_test = np.random.rand(nb_requetes, nb_features).astype(np.float32)
     latences_ms = []
 
@@ -116,72 +118,24 @@ def benchmarker_moteur(moteur_type: str, nb_requetes: int, nb_features: int) -> 
         def predict_fn(x): return session.run(None, {input_name: x})
         nom_complet = "ONNX Runtime (Después)"
 
-    # Warm-up — 10 requêtes non comptabilisées pour initialiser les buffers
+    # Warm-up — Ahora 'donnees_test' ya existe
     for i in range(min(10, nb_requetes)):
         predict_fn(donnees_test[i:i+1])
 
-    # Test réel — mesure requête par requête
+    # Test real
     for i in range(nb_requetes):
         debut = time.perf_counter()
         predict_fn(donnees_test[i:i+1])
         latences_ms.append((time.perf_counter() - debut) * 1000)
 
     return {
-        "moteur"      : nom_complet,
-        "moteur_code" : moteur_type,
-        "nb_requetes" : nb_requetes,
-        "latence_min" : float(np.min(latences_ms)),
-        "latence_p50" : float(np.percentile(latences_ms, 50)),
-        "latence_p75" : float(np.percentile(latences_ms, 75)),
-        "latence_p95" : float(np.percentile(latences_ms, 95)),
-        "latence_p99" : float(np.percentile(latences_ms, 99)),
-        "latence_max" : float(np.max(latences_ms)),
-        "latence_moy" : float(np.mean(latences_ms)),
-        "latences_raw": latences_ms,
+        "moteur": nom_complet,
+        "moteur_code": moteur_type,
+        "latence_p50": float(np.percentile(latences_ms, 50)),
+        "latence_p95": float(np.percentile(latences_ms, 95)),
+        "latence_moy": float(np.mean(latences_ms)),
+        "latences_raw": latences_ms
     }
-
-# =============================================================================
-def afficher_rapport_console(metriques: dict) -> None:
-    """
-    Affiche le rapport de benchmark formaté dans la console.
-    Produit exactement le bloc décrit dans le tutorial :
-        ============================================================
-        RAPPORT DE BENCHMARK — INFÉRENCE <MOTEUR>
-        ============================================================
-          Moteur d'inférence......: <nom>
-          Nombre de requêtes......: <N>
-        ------------------------------------------------------------
-          Latence minimum.........: X.XXX ms
-          Latence p50 (médiane)...: X.XXX ms   <- réponse typique
-          Latence p75.............: X.XXX ms
-          Latence p95.............: X.XXX ms   <- pic de charge
-          Latence p99.............: X.XXX ms   <- pire cas habituel
-          Latence maximum.........: X.XXX ms   <- outlier
-          Latence moyenne.........: X.XXX ms
-        ============================================================
-    """
-    SEP  = "=" * 60
-    SEP2 = "-" * 60
-    moteur_label = metriques["moteur"]
-
-    print(f"\n{SEP}")
-    print(f"RAPPORT DE BENCHMARK — INFÉRENCE {moteur_label.upper()}")
-    print(SEP)
-    print(f"  Moteur d'inférence......: {moteur_label}")
-    print(f"  Nombre de requêtes......: {metriques['nb_requetes']}")
-    print(SEP2)
-    print(f"  Latence minimum.........: {metriques['latence_min']:.3f} ms")
-    print(f"  Latence p50 (médiane)...: {metriques['latence_p50']:.3f} ms"
-          "      <- réponse typique")
-    print(f"  Latence p75.............: {metriques['latence_p75']:.3f} ms")
-    print(f"  Latence p95.............: {metriques['latence_p95']:.3f} ms"
-          "      <- pic de charge")
-    print(f"  Latence p99.............: {metriques['latence_p99']:.3f} ms"
-          "      <- pire cas habituel")
-    print(f"  Latence maximum.........: {metriques['latence_max']:.3f} ms"
-          "     <- outlier")
-    print(f"  Latence moyenne.........: {metriques['latence_moy']:.3f} ms")
-    print(SEP)
 
 # =============================================================================
 def profiler_moteur(moteur_type: str, nb_requetes: int, nb_features: int, top_n: int) -> str:
@@ -208,49 +162,39 @@ def profiler_moteur(moteur_type: str, nb_requetes: int, nb_features: int, top_n:
     return s.getvalue()
 
 # =============================================================================
-def exporter_resultats(metriques: dict, rapport_profil: str, format_ext: str) -> None:
-    """
-    Exporte les résultats selon le format demandé.
-
-    Fichiers produits :
-        --format txt  (défaut) : profiling_{slug}.txt  — rapport cProfile
-        --format csv           : profiling_{slug}.txt  — rapport cProfile
-                                 benchmark_{slug}_latences.csv
-                                     colonnes : requete_num, latence_ms
-        --format json          : profiling_{slug}.txt  — rapport cProfile
-                                 bench_{slug}.json
-                                     métriques résumées (sans latences_raw)
-    Le rapport cProfile est TOUJOURS généré quel que soit le format.
-    """
+def exporter_resultats_V1(metriques: dict, rapport_profil: str, format_ext: str):
     DOSSIER_RAPPORTS.mkdir(parents=True, exist_ok=True)
-    slug = metriques["moteur_code"]
+    slug = metriques['moteur_code']
 
-    # -- CSV : série temporelle avec numéro de requête -----------------------
+    # Exportar métricas
+    if format_ext == "json":
+        with open(DOSSIER_RAPPORTS / f"bench_{slug}.json", "w") as f:
+            json.dump({k:v for k,v in metriques.items() if k != "latences_raw"}, f, indent=2)
+
+    # Exportar perfilado siempre en TXT
+    with open(DOSSIER_RAPPORTS / f"profiling_{slug}.txt", "w") as f:
+        f.write(rapport_profil)
+
+def exporter_resultats(metriques: dict, rapport_profil: str, format_ext: str):
+    DOSSIER_RAPPORTS.mkdir(parents=True, exist_ok=True)
+    slug = metriques['moteur_code']
+
+    # --- NUEVA LÓGICA PARA CSV ---
     if format_ext == "csv":
-        df_latencias = pd.DataFrame({
-            "requete_num": range(len(metriques["latences_raw"])),
-            "latence_ms" : metriques["latences_raw"],
-        })
+        # Creamos un DataFrame con las latencias individuales
+        df_latencias = pd.DataFrame(metriques['latences_raw'], columns=['latence_ms'])
         ruta_csv = DOSSIER_RAPPORTS / f"benchmark_{slug}_latences.csv"
         df_latencias.to_csv(ruta_csv, index=False)
-        journal.info(f"CSV exportado: {ruta_csv}")
+        journal.info(f"✅ CSV exportado: {ruta_csv}")
 
-    # -- JSON : métriques résumées (latences_raw omis) -----------------------
+    # Exportar métricas en JSON
     if format_ext == "json":
-        metriques_export = {
-            k: v for k, v in metriques.items()
-            if k not in ("latences_raw", "moteur_code")
-        }
-        ruta_json = DOSSIER_RAPPORTS / f"bench_{slug}.json"
-        with open(ruta_json, "w", encoding="utf-8") as f:
-            json.dump(metriques_export, f, indent=2)
-        journal.info(f"JSON exportado: {ruta_json}")
+        with open(DOSSIER_RAPPORTS / f"bench_{slug}.json", "w") as f:
+            json.dump({k:v for k,v in metriques.items() if k != "latences_raw"}, f, indent=2)
 
-    # -- cProfile TXT : toujours généré --------------------------------------
-    ruta_txt = DOSSIER_RAPPORTS / f"profiling_{slug}.txt"
-    with open(ruta_txt, "w", encoding="utf-8") as f:
+    # Exportar perfilado siempre en TXT (lo que ya tenías)
+    with open(DOSSIER_RAPPORTS / f"profiling_{slug}.txt", "w") as f:
         f.write(rapport_profil)
-    journal.info(f"cProfile exportado: {ruta_txt}")
 
 # =============================================================================
 def main():
@@ -258,33 +202,32 @@ def main():
     moteurs_a_tester = ["sklearn", "onnx"] if args.moteur == "both" else [args.moteur]
     resultats = []
 
-    print("\n" + "=" * 70)
-    print(f"BENCHMARK COMPARATIVO: SKLEARN vs ONNX ({args.nb_requetes} req)")
-    print("=" * 70)
+    print("\n" + "="*70)
+    print(f"📊 BENCHMARK COMPARATIVO: SKLEARN vs ONNX ({args.nb_requetes} req)")
+    print("="*70)
 
     for m in moteurs_a_tester:
-        print(f"\nAnalizando motor: {m.upper()}...")
+        print(f"\n🔍 Analizando motor: {m.upper()}...")
         try:
-            res      = benchmarker_moteur(m, args.nb_requetes, args.nb_features)
+            res     = benchmarker_moteur(m, args.nb_requetes, args.nb_features)
             prof_res = profiler_moteur(m, args.nb_requetes, args.nb_features, args.top_fonctions)
 
-            # Rapport console complet
-            afficher_rapport_console(res)
+            # Mostrar resultados rápidos
+            print(f"   > p50: {res['latence_p50']:.3f} ms | p95: {res['latence_p95']:.3f} ms")
 
             exporter_resultats(res, prof_res, args.format)
             resultats.append(res)
         except Exception as e:
-            print(f"   Error: {e}")
+            print(f"   ❌ Error: {e}")
 
-    # Tabla comparativa final (solo en modo --moteur both)
+    # Tabla Final
     if len(resultats) > 1:
         print("\n" + "RESUMEN FINAL".center(70, "-"))
-        gain = resultats[0]["latence_p50"] / resultats[1]["latence_p50"]
+        gain = resultats[0]['latence_p50'] / resultats[1]['latence_p50']
         for r in resultats:
-            print(f"   {r['moteur']:<30} | p50: {r['latence_p50']:>6.3f} ms"
-                  f"  p95: {r['latence_p95']:>6.3f} ms")
+            print(f"   {r['moteur']:<25} | p50: {r['latence_p50']:>6.3f} ms")
         print("-" * 70)
-        print(f"MEJORA DE VELOCIDAD: x{gain:.2f} veces más rápido con ONNX")
+        print(f"🚀 MEJORA DE VELOCIDAD: x{gain:.2f} veces más rápido con ONNX")
         print("=" * 70 + "\n")
 
 if __name__ == "__main__":

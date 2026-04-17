@@ -1,0 +1,11 @@
+{
+  "moteur": "Scikit-Learn (Antes)",
+  "nb_requetes": 500,
+  "latence_min": 1.6633999985060655,
+  "latence_p50": 3.1710500006738584,
+  "latence_p75": 4.381874996397528,
+  "latence_p95": 8.18706499849213,
+  "latence_p99": 11.684155999028004,
+  "latence_max": 16.200199999730103,
+  "latence_moy": 3.84467239996593
+}

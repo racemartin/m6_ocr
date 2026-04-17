@@ -1,0 +1,11 @@
+{
+  "moteur": "ONNX Runtime (Despu\u00e9s)",
+  "nb_requetes": 500,
+  "latence_min": 0.06399999983841553,
+  "latence_p50": 0.11180000001331791,
+  "latence_p75": 0.1370250010950258,
+  "latence_p95": 0.464934995034122,
+  "latence_p99": 3.4465280052245335,
+  "latence_max": 4.920999999740161,
+  "latence_moy": 0.20758320028835442
+}

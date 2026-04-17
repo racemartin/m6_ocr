@@ -229,7 +229,29 @@ class OnnxScorerAdaptater(ICreditScorer):
             providers    = providers,
         )
         self._nom_entree = self._session.get_inputs()[0].name
-        log.DEBUG_PARAMETER_VALUE("ONNX pret | provide", providers[0])
+        nb_sortie        = self._session.get_inputs()[0].shape[1]
+        log.DEBUG_PARAMETER_VALUE("self._nom_entree" , self._nom_entree)
+        log.DEBUG_PARAMETER_VALUE("nb_sortie"        , nb_sortie)
+        log.DEBUG_PARAMETER_VALUE("ONNX pret | available provider 0", providers[0])
+
+        # 2. Log del proveedor de ejecución (Execution Provider)
+        # Usamos el primer elemento de la lista de providers activos
+        log.DEBUG_PARAMETER_VALUE("ONNX pret | session get provider 0", self._session.get_providers()[0])
+
+        # 3. Inspección de cada entrada (input) esperada por el grafo ONNX
+        for i in self._session.get_inputs():
+            # log.DEBUG_PARAMETER_VALUE acepta 2 parámetros: etiqueta y valor
+            log.DEBUG_PARAMETER_VALUE(f"input {i}", i.name)
+
+        print("-" * 30)
+        print(f"Total de parámetros detectados: {len(self._session.get_inputs())}")
+
+        # Inspección profunda del shape
+        for i in self._session.get_inputs():
+            nombre = i.name
+            forma = i.shape  # Esto devolverá algo como ['batch', 232]
+            print(f"DEBUG: El input '{nombre}' espera un vector de tamaño: {forma[1]}")
+            self._esperado_onnx = forma[1] # Guardamos ese 232
 
         # -- 2. Preprocesseur sklearn ----------------------------------------
         log.STEP(6, "2. Chargement preprocesseur", chemin_preproc)
@@ -241,6 +263,10 @@ class OnnxScorerAdaptater(ICreditScorer):
             # Extraer los nombres reales del preprocesador
             noms_encodees = self._preprocesseur.get_feature_names_out()
             self._noms_features_enc = noms_encodees  # Guardar para SHAP
+
+            # Para ver los 232 nombres en tu log de depuración:
+            for i, nombre in enumerate(noms_encodees):
+                log.DEBUG_PARAMETER_VALUE(f"feat[{i:03}]", nombre)
             
             log.LEVEL_7_INFO(NOM_FICHIER, f"DIAGNOSTIC noms features encodees ({min(30, len(noms_encodees))} premiers)")
             
@@ -263,8 +289,38 @@ class OnnxScorerAdaptater(ICreditScorer):
             
         # -- Recuperation des noms de features apres transformation ----------
         self._noms_features_enc = self._extraire_noms_features_encodees()
+
         log.DEBUG_PARAMETER_VALUE("Preprocesseur charge ", "Done!")
         log.DEBUG_PARAMETER_VALUE("Features apres encodage", self._nb_features)
+
+
+        # --- En el método charger() ---
+
+        # A. Cargar las columnas desde tu JSON
+        with open(DOSSIER_ARTEFACT / "model_input_dims.json", 'r') as f:
+            config_cols = json.load(f)
+            self._nombres_json = config_cols["feature_names"]
+        
+        # B. Ver cuántas espera ONNX realmente
+        self._n_esperado_onnx = self._session.get_inputs()[0].shape[1] 
+        
+        
+        print(f"DEBUG: JSON tiene {len(self._nombres_json)} columnas.")
+        print(f"DEBUG: ONNX espera {self._n_esperado_onnx} columnas.")
+        
+        # C. Identificar la diferencia
+        if len(self._nombres_json) > self._n_esperado_onnx:
+            # Si el JSON tiene 233 y ONNX 232, la "intrusa" es probablemente la última
+            # Pero para estar seguros, calculamos cuántas sobran
+            diferencia = len(self._nombres_json) - self._n_esperado_onnx
+            self.sobrantes = self._nombres_json[-diferencia:] 
+            
+            log.LEVEL_5_WARNING(NOM_FICHIER, f"¡DESVÍO DETECTADO! Sobran estas columnas para ONNX: {self.sobrantes}")
+            
+            # Guardamos la lista 'recortada' para que SHAP y el resto no fallen
+            self._noms_features_enc = self._nombres_json[:self._n_esperado_onnx]
+        else:
+            self._noms_features_enc = self._nombres_json
 
         # -- 3. Modele LightGBM original pour SHAP ---------------------------
         log.STEP(6, "3. Chargement LightGBM (SHAP)", chemin_lgbm)
@@ -406,6 +462,17 @@ class OnnxScorerAdaptater(ICreditScorer):
         log.STEP(6, "1. Construire dataframe depuis la demande")
         df_entree = self._construire_dataframe(demande)
 
+        # ✅ DIAGNÓSTICO TEMPORAL — eliminar tras fix
+        cols_en_df  = set(df_entree.columns)
+        cols_modelo = set(self._columnas_originales)
+        inyectadas  = cols_en_df - cols_modelo   # claves del mapeo que NO existen → se descartan
+        faltantes   = cols_modelo - cols_en_df   # columnas reales que se quedan en 0
+        log.DEBUG_PARAMETER_VALUE("DIAG cols inyectadas (descartadas)", str(sorted(inyectadas)))
+        log.DEBUG_PARAMETER_VALUE("DIAG cols faltantes  (quedan en 0)", str(sorted(faltantes)))
+        log.DEBUG_PARAMETER_VALUE("DIAG total df_entree cols",  len(cols_en_df))
+        log.DEBUG_PARAMETER_VALUE("DIAG total modelo    cols",  len(cols_modelo))
+        # ✅ FIN DIAGNÓSTICO
+        
         # ---- Etape 2: Transformation sklearn --------------------------------
         log.STEP(6, "2. Transformation sklearn")
         start_sk = time.perf_counter()
@@ -414,7 +481,7 @@ class OnnxScorerAdaptater(ICreditScorer):
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", category=UserWarning, module="sklearn.impute")
                 X_transforme = self._preprocesseur.transform(df_entree)
-                
+
         except Exception as erreur:
             # Log de error crítico antes de lanzar la excepción
             log.LEVEL_3_CRITICAL(NOM_FICHIER, f"Echec preprocessing : {erreur}")
@@ -422,37 +489,117 @@ class OnnxScorerAdaptater(ICreditScorer):
                 f"Echec preprocessing : {erreur}\n"
                 f"Colonnes fournies : {list(df_entree.columns)}"
             ) from erreur
-        
+
         elapsed      = time.perf_counter() - start_sk
         hours, rem   = divmod(elapsed, 3600)
         minutes, sec = divmod(rem, 60)
         exec_time    = f"{int(hours):02d}:{int(minutes):02d}:{sec:09.6f}"
-        
+
         log.DEBUG_PARAMETER_VALUE("Durée Preproc", exec_time)
-        
+
         # Conversión de sparse a dense si es necesario
         if hasattr(X_transforme, "toarray"):
             X_transforme = X_transforme.toarray()
-        
+
         # --- AJUSTE DINÁMICO DE COLUMNAS ---
-        # Si el modelo espera 232 y tenemos 233, recortamos la última (posible TARGET/ID)
-        if X_transforme.shape[1] > self._nb_features:
-            msg_ajuste = f"Eliminación de columna extra. De {X_transforme.shape[1]} a {self._nb_features}"
+        # 2. RETIRADA DINÁMICA DE SOBRANTES
+        # Obtenemos los nombres de las columnas que acaba de generar el preprocesador
+        nombres_actuales = list(self._preprocesseur.get_feature_names_out())
+    
+        if hasattr(self, 'sobrantes') and self.sobrantes:
+            indices_a_borrar = []
+            for col in self.sobrantes:
+                if col in nombres_actuales:
+                    indices_a_borrar.append(nombres_actuales.index(col))
             
-            # Usamos tu LogTool para que el aviso sea visible y con color
-            log.LEVEL_5_WARNING(NOM_FICHIER, msg_ajuste)
-            
-            X_transforme = X_transforme[:, :self._nb_features]
-        
+            if indices_a_borrar:
+                # Borramos las columnas por su índice en el eje 1 (columnas)
+                X_transforme = np.delete(X_transforme, indices_a_borrar, axis=1)
+                log.LEVEL_7_INFO(NOM_FICHIER, f"Eliminadas {len(indices_a_borrar)} columnas sobrantes para ONNX")
+    
+        # 3. Ahora el shape será exactamente (1, 232)
         X_float32 = X_transforme.astype(np.float32)
         log.DEBUG_PARAMETER_VALUE("Shape final X", X_float32.shape)
 
+
+        # --- En el método charger() ---
+        print(f"DEBUG: JSON tiene {len(self._nombres_json)} columnas.")
+        print(f"DEBUG: ONNX espera {self._n_esperado_onnx} columnas.")
+        
+        # C. Identificar la diferencia
+        if len(self._nombres_json) > self._n_esperado_onnx:
+            # Si el JSON tiene 233 y ONNX 232, la "intrusa" es probablemente la última
+            # Pero para estar seguros, calculamos cuántas sobran
+            diferencia = len(self._nombres_json) - self._n_esperado_onnx
+            self.sobrantes = self._nombres_json[-diferencia:] 
+            
+            log.LEVEL_5_WARNING(NOM_FICHIER, f"¡DESVÍO DETECTADO! Sobran estas columnas para ONNX: {self.sobrantes}")
+            
+            # Guardamos la lista 'recortada' para que SHAP y el resto no fallen
+            self._noms_features_enc = self._nombres_json[:self._n_esperado_onnx]
+        else:
+            self._noms_features_enc = self._nombres_json
+        
+        # DIAGNÓSTICO COLUMNA EXTRA — eliminar tras fix
+        noms_out = list(self._preprocesseur.get_feature_names_out())
+
+
+        # 1. Los nombres que genera tu preprocesador ACTUAL (los 233)
+        noms_preproc_actual = list(self._preprocesseur.get_feature_names_out())
+        
+        # 2. Los nombres que tú tienes guardados en 'self._noms_features_enc' (los 232 originales)
+        noms_originales = self._noms_features_enc
+        
+        # 3. Encontrar la diferencia exacta
+        set_actual = set(noms_preproc_actual)
+        set_original = set(noms_originales)
+        
+        self.sobrantes = list(set_actual - set_original)
+        faltantes = list(set_original - set_actual)
+        
+        log.LEVEL_5_WARNING(NOM_FICHIER, f"COLUMNAS SOBRANTES: {self.sobrantes}")
+        log.LEVEL_5_WARNING(NOM_FICHIER, f"COLUMNAS FALTANTES: {faltantes}")
+
+        
+        # Convertimos ambas listas a sets para poder comparar
+        set_esperado = set(self._noms_features_enc)
+        set_actual   = set(noms_out)
+        
+        # 1. ¿Qué tiene el preprocesador que NO espera el modelo? (El culpable del 233 vs 232)
+        self.sobrantes = set_actual - set_esperado
+        
+        # 2. ¿Qué espera el modelo que el preprocesador NO ha generado?
+        faltantes = set_esperado - set_actual
+        
+        # 3. Mostrar resultados
+        if self.sobrantes:
+            print(f"⚠️ COLUMNAS SOBRANTES EN EL PREPROCESADOR ({len(self.sobrantes)}): {self.sobrantes}")
+        if faltantes:
+            print(f"❌ COLUMNAS FALTANTES EN EL PREPROCESADOR ({len(faltantes)}): {faltantes}")
+        if not self.sobrantes and not faltantes:
+            print("✅ ¡Perfecto! Las columnas coinciden exactamente.")
+        
+        for i, nombre in enumerate(noms_out):
+                log.DEBUG_PARAMETER_VALUE(f"feat_enc[{i:03}]", nombre)
+        
+        log.DEBUG_PARAMETER_VALUE("DIAG features tras transform", len(noms_out))
+        
+        # Buscar columnas sospechosas (infrequent, unknown, extra)
+        sospechosas = [n for n in noms_out if "infrequent" in n or "remainder" in n]
+        log.DEBUG_PARAMETER_VALUE("DIAG cols sospechosas", str(sospechosas))
+        
+        # Mostrar las últimas 5 (la extra suele estar al final)
+        log.DEBUG_PARAMETER_VALUE("DIAG últimas 5 cols", str(noms_out[-5:]))
+
+
+        
         # ---- Etape 3: Inference ONNX + latence ------------------------------
         log.STEP(6, "3. Inference ONNX + latence")
+        log.DEBUG_PARAMETER_VALUE("self._nom_entree", self._nom_entree)
         debut_ms  = time.perf_counter()
         resultats = self._session.run(
             None,
-            {self._nom_entree: X_float32},
+            {self._nom_entree: X_float32},    #   _noms_features_enc
         )
         latence_ms = (time.perf_counter() - debut_ms) * 1000.0
 
@@ -665,7 +812,7 @@ class OnnxScorerAdaptater(ICreditScorer):
         # El orden es vital para que el preprocesador no confunda variables
         return pd.DataFrame([datos])[self._columnas_originales]
 
-    def _construire_dataframe(self, demande: DemandeCredit) -> pd.DataFrame:
+    def _construire_dataframe_V4(self, demande: DemandeCredit) -> pd.DataFrame:
         # 1. Inicializar todas las columnas que el modelo espera en 0.0
         # self._columnas_originales debe venir de self._preprocesseur.feature_names_in_
         datos = {col: 0.0 for col in self._columnas_originales}
@@ -703,6 +850,42 @@ class OnnxScorerAdaptater(ICreditScorer):
         # 4. Crear DF respetando el orden exacto de entrenamiento
         return pd.DataFrame([datos])[self._columnas_originales]
 
+    def _construire_dataframe(self, demande: DemandeCredit) -> pd.DataFrame:
+        # 1. Todas las columnas a 0.0 (nombres originales, sin prefijo)
+        datos = {col: 0.0 for col in self._columnas_originales}
+    
+        # 2. Mapeo con nombres ORIGINALES (sin standard__, log__, robust__)
+        mapeo = {
+            "ext_source_1":                    demande.ext_source_1,
+            "ext_source_2":                    demande.ext_source_2,
+            "ext_source_3":                    demande.ext_source_3,
+            "install_payment_ratio_mean":      demande.paymnt_ratio_mean,
+            "days_birth":                      float(-(demande.age * 365)),
+            "cc_amt_drawings_current_mean":    demande.cc_drawings_mean,
+            "install_payment_delay_mean":      demande.paymnt_delay_mean,
+            "pos_months_balance_mean":         demande.pos_months_mean,
+            "amt_goods_price":                 demande.goods_price,
+            "bureau_amt_credit_sum_total":     demande.bureau_credit_total,
+            "install_dpd_max":                 demande.max_dpd,
+            "amt_credit":                      demande.amt_credit,
+            "amt_annuity":                     demande.amt_annuity,
+            "cc_amt_balance_mean":             demande.cc_balance_mean,
+            "days_employed":                   float(-(demande.years_employed * 365)),
+            "days_last_phone_change":          demande.phone_change_days,
+            "region_rating_client":            float(demande.region_rating),
+            "bureau_amt_credit_sum_debt_mean": demande.bureau_debt_mean,
+        }
+        datos.update(mapeo)
+    
+        # 3. OHE categóricas — verificar los nombres exactos en feature_names_in_
+        edu = getattr(demande.education_type, "value", demande.education_type)
+        datos["name_education_type"] = edu  # columna original string, no OHE manual
+    
+        gender = getattr(demande.code_gender, "value", demande.code_gender)
+        datos["code_gender"] = gender
+    
+        return pd.DataFrame([datos])[self._columnas_originales]
+    
     # -------------------------------------------------------------------------
     def _calculer_shap(self, X: np.ndarray) -> np.ndarray:
         """

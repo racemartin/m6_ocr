@@ -107,9 +107,11 @@ def main():
 
                 if explications:
                     df_shap = pd.DataFrame(explications)
+                    # Forcez la mise en minuscule de la colonne pour éviter les erreurs de correspondance
+                    df_shap["direction"] = df_shap["direction"].str.lower().str.replace(" ", "_")
 
                     # Graphique de barres horizontales
-                    fig = px.bar(
+                    fig_BAK = px.bar(
                         df_shap,
                         x="impact_shap",
                         y="feature",
@@ -122,6 +124,22 @@ def main():
                         hover_data=["valeur_client"],
                         title="Impact sur le Score Final"
                     )
+                    # Utilisez un mappage avec des noms de couleurs explicites ou des codes Hex très différents
+                    fig = px.bar(
+                        df_shap,
+                        x="impact_shap",
+                        y="feature",
+                        orientation='h',
+                        color="direction",
+                        color_discrete_map={
+                            "hausse_risque": "red",     # Rouge vif pour le danger
+                            "baisse_risque": "green",   # Vert vif pour le bénéfice
+                            "neutre": "grey"            # Gris pour les impacts nuls
+                        },
+                        hover_data=["valeur_client"],
+                        title="Impact sur le Score Final"
+                    )
+
                     # On inverse l'axe Y pour que la feature la plus importante soit en haut
                     fig.update_layout(yaxis={'categoryorder':'total ascending'})
                     st.plotly_chart(fig, use_container_width=True)
