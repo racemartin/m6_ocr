@@ -19,10 +19,10 @@ license: mit
 
 ## 📂 Documentation du projet
 
-| Partie         | Description                                                                                                                                                           | 
-|----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Partie 1/2** | Initiez-vous au MLOps — MLflow, cycle de vie du modèle, feature engineering <br/>[📖 README Partie 1](README_1_2.md) <br/>[📖 Support de Presentation](docs/Support_Presentation_M6_Initiez-vous_au_MLOps_partie 1_2.pdf) |
-| **Partie 2/2** | Déployez et monitorez — API, CI/CD, Data Drift, Dashboard <br/>[📖 README Partie 2](README_2_2.md)<br/>[📖 Support de Presentation](docs/Support_Presentation_M8_Confirmez_vos_compétences_en_MLOps_Partie_2_2.pdf)                                                                                                           |  
+| Partie         | Description                                                                                                                                                                                                         | 
+|----------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Partie 1/2** | Initiez-vous au MLOps — MLflow, cycle de vie du modèle, feature engineering <br/>[📖 README Partie 1](README_1_2.md) <br/>[📖 Support de Presentation](docs/Support_Presentation_M6_Initiez-vous_au_MLOps_partie_1_2.pdf)                                |
+| **Partie 2/2** | Déployez et monitorez — API, CI/CD, Data Drift, Dashboard <br/>[📖 README Partie 2](README_2_2.md)<br/>[📖 Support de Presentation](docs/Support_Presentation_M8_Confirmez_vos_compétences_en_MLOps_Partie_2_2.pdf) |  
 
 ---
 
