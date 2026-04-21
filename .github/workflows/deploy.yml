@@ -52,6 +52,12 @@ jobs:
 
           cd hf-deploy
           git init
+          # === CORRECCIÓN AQUÍ ===
+          git lfs install                             # Inicializa LFS en el repo temporal
+          git lfs track "model_artifact/*.onnx"       # Asegura que LFS sepa qué archivos tratar
+          git lfs track "model_artifact/*.pkl"
+          # =======================
+          
           git checkout --orphan main
           git add -A
           git commit -m "Deploy API m7_ocr - ${{ github.sha }}"
