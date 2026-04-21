@@ -1,23 +1,23 @@
-         633502 function calls (580502 primitive calls) in 2.058 seconds
+         633502 function calls (580502 primitive calls) in 2.385 seconds
 
    Ordered by: cumulative time
    List reduced from 148 to 15 due to restriction <15>
 
    ncalls  tottime  percall  cumtime  percall filename:lineno(function)
-        1    0.005    0.005    2.058    2.058 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\optimization\profile_model.py:193(target)
-      500    0.024    0.000    2.053    0.004 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\sklearn.py:1339(predict_proba)
-      500    0.047    0.000    1.992    0.004 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\sklearn.py:992(predict)
-      500    0.016    0.000    0.662    0.001 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\sklearn.py:717(_process_params)
-      500    0.007    0.000    0.623    0.001 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\basic.py:4682(predict)
-54500/1500    0.286    0.000    0.561    0.000 C:\Users\Rafael CEREZO MARTIN\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\copy.py:118(deepcopy)
-     1500    0.087    0.000    0.526    0.000 C:\Users\Rafael CEREZO MARTIN\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\copy.py:217(_deepcopy_dict)
-      500    0.005    0.000    0.440    0.001 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\sklearn.py:679(get_params)
-      500    0.024    0.000    0.434    0.001 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\sklearn\base.py:240(get_params)
-     1000    0.019    0.000    0.399    0.000 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\basic.py:630(_choose_param_value)
-      500    0.043    0.000    0.394    0.001 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\sklearn\base.py:209(_get_param_names)
-      500    0.002    0.000    0.326    0.001 C:\Users\Rafael CEREZO MARTIN\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\inspect.py:3346(signature)
-      500    0.002    0.000    0.325    0.001 C:\Users\Rafael CEREZO MARTIN\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\inspect.py:3081(from_callable)
-      500    0.016    0.000    0.322    0.001 C:\Users\Rafael CEREZO MARTIN\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\inspect.py:2501(_signature_from_callable)
-      500    0.085    0.000    0.298    0.001 C:\Users\Rafael CEREZO MARTIN\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\inspect.py:2397(_signature_from_function)
+        1    0.005    0.005    2.385    2.385 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\optimization\profile_model.py:193(target)
+      500    0.032    0.000    2.380    0.005 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\sklearn.py:1339(predict_proba)
+      500    0.054    0.000    2.305    0.005 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\sklearn.py:992(predict)
+      500    0.017    0.000    0.750    0.001 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\sklearn.py:717(_process_params)
+      500    0.008    0.000    0.744    0.001 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\basic.py:4682(predict)
+54500/1500    0.317    0.000    0.614    0.000 C:\Users\Rafael CEREZO MARTIN\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\copy.py:118(deepcopy)
+     1500    0.094    0.000    0.574    0.000 C:\Users\Rafael CEREZO MARTIN\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\copy.py:217(_deepcopy_dict)
+      500    0.006    0.000    0.497    0.001 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\sklearn.py:679(get_params)
+      500    0.025    0.000    0.490    0.001 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\sklearn\base.py:240(get_params)
+      500    0.051    0.000    0.448    0.001 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\sklearn\base.py:209(_get_param_names)
+     1000    0.022    0.000    0.437    0.000 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\basic.py:630(_choose_param_value)
+      500    0.010    0.000    0.377    0.001 C:\Users\Public\IAE_DELL\pra_dell\m6_ocr\.venv\Lib\site-packages\lightgbm\basic.py:1081(predict)
+      500    0.002    0.000    0.370    0.001 C:\Users\Rafael CEREZO MARTIN\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\inspect.py:3346(signature)
+      500    0.002    0.000    0.368    0.001 C:\Users\Rafael CEREZO MARTIN\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\inspect.py:3081(from_callable)
+      500    0.020    0.000    0.366    0.001 C:\Users\Rafael CEREZO MARTIN\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\inspect.py:2501(_signature_from_callable)
 
 

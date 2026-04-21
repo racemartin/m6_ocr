@@ -2,27 +2,29 @@
 # optimization/profile_model.py — Comparativa de Performance: Sklearn vs ONNX
 # =============================================================================
 
+# =============================================================================
+# POSSIBILITÉS D'EXÉCUTION (Commandes UV / Python) :
+# =============================================================================
 #
-# POSIBILIDADES DE EJECUCIÓN (Comandos UV / Python):
-#
-# 1. COMPARACIÓN ESTÁNDAR (Ambos motores, 500 peticiones):
+# 1. COMPARAISON STANDARD (Analyse des deux moteurs avec 500 requêtes) :
 #    uv run python optimization/profile_model.py
 #
-# 2. PROBAR SOLO EL "ANTES" (Scikit-Learn Nativo):
+# 2. TESTER UNIQUEMENT LE MOTEUR "AVANT" (Scikit-Learn natif) :
 #    uv run python optimization/profile_model.py --moteur sklearn
 #
-# 3. PROBAR SOLO EL "DESPUÉS" (ONNX Optimizado):
+# 3. TESTER UNIQUEMENT LE MOTEUR "APRÈS" (ONNX optimisé) :
 #    uv run python optimization/profile_model.py --moteur onnx
 #
-# 4. ESTRÉS TEST (Aumentar carga para ver estabilidad):
+# 4. TEST DE CHARGE (Augmenter le volume pour vérifier la stabilité) :
 #    uv run python optimization/profile_model.py --nb-requetes 2000
 #
-# 5. EXPORTAR RESULTADOS A JSON (Para auditoría de MLOps):
+# 5. EXPORTER LES RÉSULTATS AU FORMAT JSON (Pour l'audit MLOps) :
 #    uv run python optimization/profile_model.py --format json
 #
-# 6. INVESTIGACIÓN PROFUNDA (Ver las 50 funciones más lentas en el Profiler):
+# 6. ANALYSE APPROFONDIE (Afficher les 50 fonctions les plus lentes via le Profiler) :
 #    uv run python optimization/profile_model.py --top-fonctions 50
 #
+# =============================================================================
 
 import argparse
 import cProfile

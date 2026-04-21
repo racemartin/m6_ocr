@@ -66,7 +66,7 @@ def verifier_sante(
     return {
         "statut"         : statut,
         "scorer_pret"    : scorer.est_pret,
-        "backend_modele" : parametres.backend_modele,
+        "model_backend"  : parametres.model_backend,
         "version_api"    : parametres.version_api,
         "seuil_decision" : parametres.seuil_decision,
     }
