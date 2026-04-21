@@ -115,16 +115,17 @@ models/*.pkl
 models/*.h5
 models/*.pt
 #models/*.joblib
-*.pkl
+reports/*.pkl
+
 *.h5
 *.pt
-*.onnx
+model/*.onnx
 *.tflite
 *.bin
 *.pyd
 *.so
 
-model_artifact/best_model.onnx
+# model_artifact/best_model.onnx
 .xet/
 .xetattributes
 
