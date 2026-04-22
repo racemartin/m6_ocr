@@ -17,6 +17,7 @@ from datetime import datetime
 from sklearn.model_selection import KFold
 from sklearn.neighbors       import BallTree
 import math                                   # Calculs mathématiques de base
+from typing import Self
 
 
 from   sklearn.preprocessing import (
@@ -142,8 +143,8 @@ class DataCleaner:
         Rapport d'architecture aligné : Les deux points sont fixés sur une colonne verticale.
         """
         # 1. RÉCUPÉRATION DES DONNÉES DE BASE
-        res = self._identifier_colonnes_par_types()
-
+        # res = self._identifier_colonnes_par_types()
+        self._identifier_colonnes_par_types()
         # 2. REMPLISSAGE DES LISTES MAÎTRES (Usando tu lógica de identificación)
         self.COLS_NUMERICAL   = self.df.select_dtypes(include=[np.number]).columns.tolist()
         self.COLS_CATEGORICAL = self.df.select_dtypes(include=['object', 'category']).columns.tolist()
@@ -493,7 +494,7 @@ class DataCleaner:
                                if mean_val != 0 else df[col].std())
 
             # Valeur dominante
-            dom_val = v_counts.index[0] if n_unique > 0 else None
+            # dom_val = v_counts.index[0] if n_unique > 0 else None
             dom_freq = v_counts.values[0] if n_unique > 0 else 0
             dom_pct = (dom_freq / len(df) * 100)
 
@@ -1701,7 +1702,7 @@ class DataCleaner:
         ].index.tolist()
 
          # Identification de l'asymétrie critique
-        cols_asym       = desc[desc['Skewness'].abs() > 1].index.tolist()
+        # cols_asym       = desc[desc['Skewness'].abs() > 1].index.tolist()
 
         # --------------------------------------------------------------------------
         # 3. SYSTÈME EXPERT : COLONNE D'OBSERVATIONS
@@ -2507,7 +2508,8 @@ class DataCleaner:
         description: str = '',
         dtype: Optional[type] = None,
         validar: bool = True
-    ) -> 'FeatureEngineer':
+
+    ) -> Self:
         """
         Método genérico para añadir cualquier feature.
         
@@ -2598,22 +2600,22 @@ class DataCleaner:
         # 4.1 & 4.2 Distance au Centre et au Port (Calcul géospatial)
         # --------------------------------------------------------------------------
         # Note : Ces calculs sont déterministes et ne dépendent pas du fit.
-        dist_results = calculer_distances_points_cles(
-            df_temp, col_lat='Latitude', col_lon='Longitude'
-        )
-        df_temp['F1_Distance_Centre_m'] = dist_results[0]
-        df_temp['F2_Distance_Port_m']   = dist_results[1]
+        #dist_results = calculer_distances_points_cles(
+        #    df_temp, col_lat='Latitude', col_lon='Longitude'
+        #)
+        #df_temp['F1_Distance_Centre_m'] = dist_results[0]
+        #df_temp['F2_Distance_Port_m']   = dist_results[1]
 
         # --------------------------------------------------------------------------
         # 4.3 Densite_Voisinage_{rayon}m (Analyse de proximité)
         # --------------------------------------------------------------------------
-        RADII_METERS = [500, 1000, 1500, 2000]
-        if self.reference_tree is not None:
-            for rayon in RADII_METERS:
-                # La méthode capture l'état de self.reference_tree appris lors du fit
-                df_temp[f'F3_Densite_Voisinage_{rayon}m'] = calcular_densite_voisinage_with_reference_tree(
-                    df_temp, rayon_m=rayon, reference_tree=self.reference_tree
-                )
+        #RADII_METERS = [500, 1000, 1500, 2000]
+        #if self.reference_tree is not None:
+        #    for rayon in RADII_METERS:
+        #        # La méthode capture l'état de self.reference_tree appris lors du fit
+        #        df_temp[f'F3_Densite_Voisinage_{rayon}m'] = calcular_densite_voisinage_with_reference_tree(
+        #            df_temp, rayon_m=rayon, reference_tree=self.reference_tree
+        #        )
 
         # --------------------------------------------------------------------------
         # 4.4 Taille_Batiment_Ordinale (Binning et Mapping)
@@ -2963,7 +2965,7 @@ class DataCleaner:
         columns: List[str],
         drop_first: bool = True,
         prefix_sep: str = '_'
-    ) -> 'FeatureEngineer':
+    ) -> Self:
         """
         Applique One-Hot Encoding aux colonnes spécifiées.
         
@@ -3130,7 +3132,7 @@ class DataCleaner:
 
         print(f"📊 Analyse de la relation : {col} ➔ {target}")
         print("-" * 60)
-        display(stats)
+        print(stats)
 
         # 3. Visualización (Boxplot)
         import seaborn as sns
@@ -3163,7 +3165,7 @@ class DataCleaner:
         n_folds: int = 5,
         smoothing: float = 10.0,
         suffix: str = '_Encoded'
-    ) -> 'FeatureEngineer':
+    ) -> Self:
         """
         Applique Target Encoding avec Cross-Validation pour éviter le leakage.
         
@@ -3224,7 +3226,7 @@ class DataCleaner:
         global_mean = df_res[target].mean()
 
         # Estadísticas por categoría (para tracking)
-        category_stats_full = df_res.groupby(column)[target].agg(['mean', 'count', 'std'])
+        # category_stats_full = df_res.groupby(column)[target].agg(['mean', 'count', 'std'])
 
         # Cross-Validation
         for fold_num, (train_idx, val_idx) in enumerate(kf.split(df_res), 1):
@@ -3708,7 +3710,7 @@ class DataCleaner:
         colonnes: List[str],
         raison: str = 'Corrélation élevée avec autre variable',
         valider: bool = True
-    ) -> 'FeatureEngineer':
+    ) -> Self:
         """
         Élimine les colonnes hautement corrélées de manière supervisée.
         

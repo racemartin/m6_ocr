@@ -25,14 +25,13 @@ from __future__ import annotations
 import logging                              # Logs (mode verbose + debug)
 import sqlite3                              # Backend local (sans SQLAlchemy)
 from   pathlib import Path                  # Chemins robustes
-from   typing  import Optional, Union       # Typage
+from   typing  import Optional       # Typage
 import time                                 # Mesure des temps d'exécution
 import io
 
 # ==============================================================================
 # IMPORTS - LIBRAIRIES TIERS (DATA)
 # ==============================================================================
-import numpy as np                          # Calculs numériques
 import pandas as pd                         # DataFrames (ingestion / lecture SQL)
 
 # ==============================================================================
@@ -260,7 +259,7 @@ class CreditScoringCleaner:
         # 2. Application du mapping métier (si demandé)
         if apply_rename:
             df = df.rename(columns=self.registry.rename_map)
-            self._print(f"     ↳ Mapping technique appliqué via Registry")
+            self._print("     ↳ Mapping technique appliqué via Registry")
     
         # 3. Normalisation SQL (lowercase, sans espaces)
         df.columns = [c.strip().lower() for c in df.columns]

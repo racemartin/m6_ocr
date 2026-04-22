@@ -17,12 +17,10 @@ Légende des commentaires inline :
 """
 
 from __future__ import annotations
-from typing import Optional, Dict, List
-from dataclasses import dataclass, field
 
 # --- Importer depuis schema.py ---
 from src.data.schema import (
-    AttributeSpec, FeatureRegistry, ColumnType, ColumnRole,
+    FeatureRegistry, ColumnType, ColumnRole,
     EncodingType, TransformType, build_attribute_spec
 )
 
