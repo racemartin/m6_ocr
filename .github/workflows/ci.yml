@@ -70,3 +70,9 @@ jobs:
             #--cov=src \
             #--cov-report=term-missing \
             #--cov-fail-under=80
+
+  deploy:
+    needs: test                          # espera CI verde ✅
+    if: github.ref == 'refs/heads/main'  # solo en main, no en develop ni PRs
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit                     # pasa HF_TOKEN automáticamente

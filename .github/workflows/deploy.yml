@@ -3,11 +3,12 @@ name: Deploy to Hugging Face
 on:
   #push:
   #  branches: [main]
-  workflow_run:
-    workflows: [ "CI_Pipeline" ]
-    types: [ completed ]
-    # branches: [ main ]
 
+  #workflow_run:
+  #  workflows: [ "CI_Pipeline" ]
+  #  types: [ completed ]
+
+  workflow_call:    # ← en lugar de workflow_run
 
 env: 
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -72,3 +73,4 @@ jobs:
           # ⚠️ Cambia 'mombasstic/proyecto8-app' por tu Space real
           git remote add hf https://mombasstic:$HF_TOKEN@huggingface.co/spaces/mombasstic/pret_a_depenser || true
           git push hf main:main --force
+
