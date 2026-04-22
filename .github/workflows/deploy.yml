@@ -4,9 +4,10 @@ on:
   #push:
   #  branches: [main]
   workflow_run:
-    workflows: [ "CI Pipeline" ]
+    workflows: [ "CI_Pipeline" ]
     types: [ completed ]
     branches: [ main ]
+
 
 env: 
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
