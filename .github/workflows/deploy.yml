@@ -6,7 +6,7 @@ on:
   workflow_run:
     workflows: [ "CI_Pipeline" ]
     types: [ completed ]
-    branches: [ main ]
+    # branches: [ main ]
 
 
 env: 
