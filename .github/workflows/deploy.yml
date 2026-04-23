@@ -8,9 +8,9 @@ on:
   #  workflows: [ "CI_Pipeline" ]
   #  types: [ completed ]
 
-  workflow_call:    # ← en lugar de workflow_run
+  workflow_call:    # ← au lieu de workflow_run
 
-env: 
+env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
@@ -28,22 +28,22 @@ jobs:
         run: |
           mkdir -p hf-deploy
 
-          # Código fuente de la API
+          # Code source de l'API
           cp -r src/              hf-deploy/src/
-          # El modelo ya entrenado (sin MLflow, sin experimentos)
+          # Le modèle déjà entraîné (sans MLflow, sans expériences)
           cp -r model_artifact/   hf-deploy/model_artifact/
           cp -r monitoring/       hf-deploy/monitoring/
 
-          # Dependencias
+          # Dépendances
           cp requirements-prod.txt hf-deploy/requirements.txt
           
-          # Dockerfile que arranca uvicorn en puerto 7860
+          # Dockerfile qui lance uvicorn sur le port 7860
           cp Dockerfile           hf-deploy/Dockerfile
           
-          # App que arranca la aPI y la interface simulator para la inferencia 
+          # App qui lance l'API et l'interface simulateur pour l'inférence
           cp app.py               hf-deploy/app.py
           
-          # ✅ README con configuración del Space
+          # ✅ README avec configuration du Space
           cp README.md            hf-deploy/README.md
 
           cp config.py            hf-deploy/config.py   
@@ -59,9 +59,9 @@ jobs:
           cd hf-deploy
           git init
           
-          # === CORRECCIÓN AQUÍ ===
-          git lfs install                             # Inicializa LFS en el repo temporal
-          git lfs track "model_artifact/*.onnx"       # Asegura que LFS sepa qué archivos tratar
+          # =======================
+          git lfs install                             # Initialise LFS dans le repo temporaire
+          git lfs track "model_artifact/*.onnx"       # Assure que LFS sache quels fichiers traiter
           git lfs track "model_artifact/*.pkl"
           # =======================
           
@@ -69,8 +69,6 @@ jobs:
           git add -A
           git commit -m "Deploy API m7_ocr - ${{ github.sha }}"
 
-
-          # ⚠️ Cambia 'mombasstic/proyecto8-app' por tu Space real
+          # =======================
           git remote add hf https://mombasstic:$HF_TOKEN@huggingface.co/spaces/mombasstic/pret_a_depenser || true
           git push hf main:main --force
-

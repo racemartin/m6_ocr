@@ -1,0 +1,28 @@
+# Données brutes (chargées depuis S3/Azure Blob en production)
+#*.csv
+#*.parquet
+#*.json
+#data/
+
+# Notebooks d'exploration (pas du code de production)
+notebooks/
+*.ipynb
+
+# Environnements virtuels locaux (recréés par pip/UV dans l'image)
+.venv/
+__pycache__/
+*.pyc
+
+# Artefacts MLflow (si servis depuis un registre distant)
+# mlruns/
+
+# Secrets et configuration locale
+#.env
+#*.env.*
+#secrets/
+
+# Git et documentation
+.git/
+.gitignore
+*.md
+docs/
